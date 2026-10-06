@@ -31,7 +31,9 @@
   #welcome { max-width:520px; margin:60px auto; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:28px; text-align:center; }
   #welcome p { color:var(--muted); }
   #welcome .row { display:flex; gap:10px; justify-content:center; margin-top:16px; }
-  .banner { background:#fff7e6; border:1px solid #f5d28a; color:#7a4b00; padding:10px 14px; border-radius:8px; margin-bottom:12px; display:flex; gap:12px; align-items:center; }
+  [hidden] { display:none !important; }
+  .banner { background:#fff7e6; border:1px solid #f5d28a; color:#7a4b00; padding:2px 8px; border-radius:6px; font-size:12px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .banner button { padding:2px 8px; font-size:12px; }
   @media (prefers-color-scheme: dark) { .banner { background:#3a2e12; border-color:#6b5320; color:#f3d9a0; } }
 
   .filters { display:flex; flex-wrap:wrap; gap:10px; align-items:end; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 12px; margin-bottom:12px; }
@@ -40,7 +42,19 @@
   .count { margin-left:auto; color:var(--muted); font-size:12px; padding-bottom:6px; }
 
   .tablewrap { background:var(--card); border:1px solid var(--line); border-radius:8px; overflow:auto; }
-  table { border-collapse:collapse; width:100%; min-width:1000px; }
+  table { border-collapse:collapse; table-layout:fixed; }
+  th { overflow:visible; }
+  .rs { position:absolute; right:-3px; top:0; bottom:0; width:7px; cursor:col-resize; z-index:2; }
+  th:last-child .rs { right:0; }
+  input.effort { text-align:right; }
+  th.dragging { opacity:.4; }
+  th.drop-l { box-shadow:inset 3px 0 0 var(--accent); }
+  th.drop-r { box-shadow:inset -3px 0 0 var(--accent); }
+  .rs:hover, .rs.drag { background:var(--accent); opacity:.5; }
+  td { overflow-wrap:anywhere; }
+  td input[type=date], td input[type=number], td select { width:100%; min-width:0; max-width:100%; }
+  input[type=number] { appearance:textfield; -moz-appearance:textfield; }
+  a.linkicon { text-decoration:none; font-size:16px; }
   th, td { padding:8px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
   th { position:sticky; top:0; background:var(--card); font-size:12px; color:var(--muted); white-space:nowrap; user-select:none; }
   th.sortable { cursor:pointer; }
@@ -62,14 +76,36 @@
   .p-中 { background:#fdf0d0; color:#92600a; }
   .p-低 { background:#e0ecff; color:#1d4ed8; }
   td a { color:var(--accent); word-break:break-all; }
+  tr.overdue td { background:rgba(220,38,38,.09); }
+  tr.today td { background:rgba(217,119,6,.13); }
+  .sub { font-size:11px; color:var(--muted); font-weight:400; }
+  .summary { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:10px; font-size:13px; color:var(--muted); }
+  .chip { border-radius:14px; padding:3px 12px; font-weight:600; }
+  .chip.over { color:var(--danger); border-color:var(--danger); }
+  .chip.today { color:var(--warn); border-color:var(--warn); }
+  .chip.soon { color:var(--accent); border-color:var(--accent); }
+  .chip.active { color:#fff; background:currentColor; }
+  .chip.active > span { color:#fff; }
+  .hist { display:flex; gap:4px; }
+  .hist button { padding:3px 9px; font-size:12px; }
   .empty { padding:30px; text-align:center; color:var(--muted); }
 </style>
 </head>
 <body>
 <header>
   <h1>📋 タスク管理</h1>
+  <div id="reconnect" class="banner" hidden>
+    <span id="reconnectMsg">前回のファイルへのアクセス許可が必要です。</span>
+    <button class="primary" id="btnRepick">同じファイルを選び直す</button>
+    <button id="btnReconnect">再接続</button>
+    <button id="btnOther">別のファイルを選ぶ</button>
+  </div>
   <span id="fileInfo"></span>
   <button id="btnChange" hidden>ファイル変更</button>
+  <span class="hist" id="hist" hidden>
+    <button id="btnUndo" title="元に戻す (Ctrl+Z)" disabled>↶ 元に戻す</button>
+    <button id="btnRedo" title="やり直す (Ctrl+Y)" disabled>↷ やり直す</button>
+  </span>
   <span id="saveState"></span>
 </header>
 
@@ -85,40 +121,28 @@
     <p id="unsupported" hidden style="color:var(--danger)">このブラウザは File System Access API に未対応です。Chrome / Edge で開いてください。</p>
   </div>
 
-  <div id="reconnect" class="banner" hidden>
-    <span id="reconnectMsg">前回のファイルへのアクセス許可が必要です。</span>
-    <button class="primary" id="btnReconnect">再接続</button>
-    <button id="btnOther">別のファイルを選ぶ</button>
-  </div>
-
   <div id="app" hidden>
+    <div class="summary" id="summary"></div>
     <div class="filters">
       <label>キーワード<input type="search" id="fText" placeholder="タスク名・備考・リンク"></label>
       <label>ステータス<select id="fStatus"></select></label>
       <label>優先度<select id="fPriority"></select></label>
       <label>期日(から)<input type="date" id="fFrom"></label>
       <label>期日(まで)<input type="date" id="fTo"></label>
-      <label class="chk"><input type="checkbox" id="fHideDone"> 完了を隠す</label>
-      <label class="chk"><input type="checkbox" id="fOverdue"> 期限切れのみ</label>
+      <label class="chk"><input type="checkbox" id="fHideDone" checked> 完了を隠す</label>
+      <label>期日の状態<select id="fDueRel"></select></label>
       <button id="btnClear">クリア</button>
+      <label>保存した条件<select id="fPreset"></select></label>
+      <button id="btnPresetSave">条件を保存</button>
+      <button id="btnPresetDel" class="danger">条件を削除</button>
+      <button id="btnColReset" title="見出しをドラッグで列の移動、境界をドラッグで列幅を変更できます">列を初期状態に</button>
       <span class="count" id="count"></span>
       <button class="primary" id="btnAdd">＋ タスク追加</button>
     </div>
     <div class="tablewrap">
-      <table>
-        <thead>
-          <tr>
-            <th class="sortable" data-k="name">タスク名 <span class="arrow"></span></th>
-            <th class="sortable" data-k="start">着手日 <span class="arrow"></span></th>
-            <th class="sortable" data-k="due">期日 <span class="arrow"></span></th>
-            <th class="sortable" data-k="priority">優先度 <span class="arrow"></span></th>
-            <th class="sortable" data-k="status">ステータス <span class="arrow"></span></th>
-            <th class="sortable" data-k="remain">残日数 <span class="arrow"></span></th>
-            <th>リンク</th>
-            <th>備考</th>
-            <th></th>
-          </tr>
-        </thead>
+      <table id="tbl">
+        <colgroup id="cols"></colgroup>
+        <thead id="thead"></thead>
         <tbody id="rows"></tbody>
       </table>
       <div class="empty" id="empty" hidden>該当するタスクがありません</div>
@@ -168,12 +192,17 @@
   let handle = null;
   let tasks = [];
   let editingId = null;
+  let newId = null; // 追加直後で未確定のレコード (取消時に破棄)
   let lastModified = 0;
   let saving = Promise.resolve();
   let sort = { k: 'due', dir: 1 };
-  const filters = { text:'', status:'', priority:'', from:'', to:'', hideDone:false, overdue:false };
+  const filters = { text:'', status:'', priority:'', from:'', to:'', hideDone:true, dueRel:'' };
+  let presets = [];            // 保存した絞り込み条件 (ファイルに一緒に保存)
+  let undoStack = [], redoStack = [];
+  const DUE_RELS = [['overdue','期限切れ'], ['today','今日'], ['d3','明日〜3日後'], ['d7','7日以内(今日含む)'], ['none','期日なし']];
 
   // ---------- 日付 ----------
+  const localISO = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   const today = () => { const d = new Date(); d.setHours(0,0,0,0); return d; };
   const parseDate = s => { if (!s) return null; const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); };
   const remainDays = t => {
@@ -185,23 +214,66 @@
   // ---------- ファイル入出力 ----------
   const setState = (msg, cls) => { const e = $('saveState'); e.textContent = msg; e.style.color = cls === 'err' ? 'var(--danger)' : cls === 'ok' ? 'var(--ok)' : 'var(--muted)'; };
 
+  async function retry(fn, n = 4) {
+    for (let i = 0; ; i++) {
+      try { return await fn(); }
+      catch (e) { if (i >= n - 1) throw e; await new Promise(r => setTimeout(r, 300 * (i + 1))); }
+    }
+  }
+
   async function loadFile() {
-    const f = await handle.getFile();
-    const text = await f.text();
+    let f, text;
+    await retry(async () => { f = await handle.getFile(); text = await f.text(); });
     lastModified = f.lastModified;
-    if (!text.trim()) { tasks = []; return; }
+    if (!text.trim()) { tasks = []; presets = []; return; }
     const data = JSON.parse(text);
     tasks = Array.isArray(data) ? data : (data.tasks || []);
+    presets = (!Array.isArray(data) && data.presets) || [];
+  }
+
+  // ---------- 元に戻す / やり直す ----------
+  const snapshot = () => JSON.stringify(tasks.filter(x => x.id !== newId)); // 未確定の新規行は含めない
+  function updateHistoryButtons() {
+    $('btnUndo').disabled = !undoStack.length;
+    $('btnRedo').disabled = !redoStack.length;
+    $('btnUndo').title = undoStack.length ? `元に戻す: ${undoStack[undoStack.length-1].label} (Ctrl+Z)` : '元に戻す (Ctrl+Z)';
+  }
+  function pushUndo(label) {
+    undoStack.push({ label, snap: snapshot() });
+    if (undoStack.length > 100) undoStack.shift();
+    redoStack = [];
+    updateHistoryButtons();
+  }
+  function resetHistory() { undoStack = []; redoStack = []; updateHistoryButtons(); }
+  function restore(from, to, verb) {
+    const e = from.pop(); if (!e) return;
+    to.push({ label: e.label, snap: snapshot() });
+    tasks = JSON.parse(e.snap);
+    editingId = newId = null;
+    save(); render(); updateHistoryButtons();
+    setState(`${verb}しました（${e.label}）`, 'ok');
+  }
+  const undo = () => restore(undoStack, redoStack, '元に戻');
+  const redo = () => restore(redoStack, undoStack, 'やり直');
+
+  // ステータス変更 (完了日の自動記録)
+  function setStatus(t, v) {
+    t.status = v;
+    if (v === '完了') { if (!t.completed) t.completed = localISO(today()); }
+    else delete t.completed;
   }
 
   function save() {
     setState('保存中…');
     saving = saving.then(async () => {
       try {
-        const w = await handle.createWritable();
-        await w.write(JSON.stringify({ version: 1, tasks }, null, 2));
-        await w.close();
-        lastModified = (await handle.getFile()).lastModified;
+        // OneDrive の同期などでファイルが書込み中に変化すると InvalidStateError になるため、再試行する
+        await retry(async () => {
+          const w = await handle.createWritable();
+          await w.write(JSON.stringify({ version: 1, tasks: tasks.filter(x => x.id !== newId), presets }, null, 2));
+          await w.close();
+        });
+        try { lastModified = (await handle.getFile()).lastModified; } catch { /* 保存自体は成功 */ }
         setState('保存しました ' + new Date().toLocaleTimeString(), 'ok');
       } catch (e) {
         console.error(e);
@@ -221,7 +293,8 @@
   async function useHandle(h, isNew) {
     handle = h;
     await idb.set('handle', h);
-    if (isNew) { tasks = []; await save(); } else { await loadFile(); }
+    editingId = newId = null; resetHistory();
+    if (isNew) { tasks = []; presets = []; await save(); } else { await loadFile(); }
     showApp();
   }
 
@@ -242,22 +315,35 @@
 
   // ---------- 画面切替 ----------
   function showWelcome() {
-    $('welcome').hidden = false; $('app').hidden = true; $('reconnect').hidden = true; $('btnChange').hidden = true;
+    $('welcome').hidden = false; $('app').hidden = true; $('reconnect').hidden = true; $('btnChange').hidden = true; $('hist').hidden = true;
     $('fileInfo').textContent = '';
   }
   function showReconnect(msg) {
-    $('welcome').hidden = true; $('app').hidden = true; $('reconnect').hidden = false; $('btnChange').hidden = true;
+    $('welcome').hidden = true; $('app').hidden = true; $('reconnect').hidden = false; $('btnChange').hidden = true; $('hist').hidden = true;
     $('reconnectMsg').textContent = msg || '前回のファイル「' + handle.name + '」へのアクセス許可が必要です。';
     $('fileInfo').textContent = '';
   }
   function showApp() {
-    $('welcome').hidden = true; $('reconnect').hidden = true; $('app').hidden = false; $('btnChange').hidden = false;
+    $('welcome').hidden = true; $('reconnect').hidden = true; $('app').hidden = false; $('btnChange').hidden = false; $('hist').hidden = false;
     $('fileInfo').textContent = '📄 ' + handle.name;
     setState('');
+    renderPresets();
     render();
   }
 
   // ---------- フィルタ・ソート ----------
+  function matchDueRel(t, rel) {
+    if (rel === 'none') return !t.due;
+    if (t.status === '完了') return false;
+    const r = remainDays(t); if (r === null) return false;
+    switch (rel) {
+      case 'overdue': return r < 0;
+      case 'today': return r === 0;
+      case 'd3': return r >= 1 && r <= 3;
+      case 'd7': return r >= 0 && r <= 7;
+    }
+    return true;
+  }
   function visibleTasks() {
     const q = filters.text.trim().toLowerCase();
     let list = tasks.filter(t => {
@@ -266,7 +352,7 @@
       if (filters.hideDone && t.status === '完了') return false;
       if (filters.from && (!t.due || t.due < filters.from)) return false;
       if (filters.to && (!t.due || t.due > filters.to)) return false;
-      if (filters.overdue) { const r = remainDays(t); if (t.status === '完了' || r === null || r >= 0) return false; }
+      if (filters.dueRel && !matchDueRel(t, filters.dueRel)) return false;
       if (q && !(`${t.name} ${t.note} ${t.link}`.toLowerCase().includes(q))) return false;
       return true;
     });
@@ -301,45 +387,161 @@
     return `<td class="remain${r <= 3 ? ' soon' : ''}">あと${r}日</td>`;
   }
 
+  function completedCell(t) {
+    if (!t.completed) return '<td></td>';
+    const s = parseDate(t.start);
+    let extra = '';
+    if (s) { const d = Math.round((parseDate(t.completed) - s) / 86400000); extra = `<div class="sub">${d <= 0 ? '当日完了' : '所要' + d + '日'}</div>`; }
+    return `<td>${esc(t.completed)}${extra}</td>`;
+  }
+
+  function renderSummary() {
+    const cnt = rel => tasks.filter(t => t.id !== newId && matchDueRel(t, rel)).length;
+    const chips = [['overdue','over','超過'], ['today','today','今日'], ['d3','soon','明日〜3日後']]
+      .map(([rel, cls, label]) => [rel, cls, label, cnt(rel)]).filter(c => c[3] > 0)
+      .map(([rel, cls, label, n]) => `<button class="chip ${cls}${filters.dueRel === rel ? ' active' : ''}" data-due="${rel}">${label} <span>${n}件</span></button>`);
+    $('summary').innerHTML = chips.length ? '期日アラート: ' + chips.join('') : '期限切れ・直近の期日のタスクはありません';
+  }
+
+  // ---------- 列定義 (並び順・幅はドラッグで変更でき、ブラウザに記憶) ----------
+  const statusSel = t => `<select data-f="status">${opts(STATUSES, t.status)}</select>`;
+  const noteCell = t => `<td><textarea data-f="note" rows="1">${esc(t.note)}</textarea></td>`;
+  const effortCell = t => `<td><input type="number" class="effort" data-f="effort" min="0" step="0.5" value="${esc(t.effort ?? '')}" placeholder="h"></td>`;
+  const dateEdit = (id, v) => `<td><input type="date" id="${id}" value="${esc(v)}"></td>`;
+  const COLS = {
+    created:   { label: '起票日', sort: 'created', w: 130,
+                 view: t => `<td>${esc(t.created)}</td>`, edit: t => dateEdit('e_created', t.created) },
+    name:      { label: 'タスク名', sort: 'name', w: 200,
+                 view: t => `<td class="name">${esc(t.name) || '<span style="color:var(--muted)">(無題)</span>'}</td>`,
+                 edit: t => `<td class="name"><input type="text" id="e_name" value="${esc(t.name)}" placeholder="タスク名"></td>` },
+    start:     { label: '着手日', sort: 'start', w: 130,
+                 view: t => `<td>${t.start ? esc(t.start) : '<button data-a="start">着手開始</button>'}</td>`, edit: t => dateEdit('e_start', t.start) },
+    due:       { label: '期日', sort: 'due', w: 130,
+                 view: t => `<td>${esc(t.due)}</td>`, edit: t => dateEdit('e_due', t.due) },
+    effort:    { label: '工数(h)', sort: 'effort', w: 90,
+                 view: effortCell, edit: effortCell },
+    priority:  { label: '優先度', sort: 'priority', w: 70,
+                 view: t => `<td><span class="badge p-${esc(t.priority)}">${esc(t.priority)}</span></td>`,
+                 edit: t => `<td><select id="e_priority">${opts(PRIORITIES, t.priority)}</select></td>` },
+    status:    { label: 'ステータス', sort: 'status', w: 100,
+                 view: t => `<td>${statusSel(t)}</td>`, edit: t => `<td>${statusSel(t)}</td>` },
+    remain:    { label: '残日数', sort: 'remain', w: 90, view: remainCell, edit: remainCell },
+    completed: { label: '完了日', sort: 'completed', w: 110, view: completedCell, edit: completedCell },
+    link:      { label: 'リンク', w: 56,
+                 view: t => `<td>${t.link ? `<a class="linkicon" href="${esc(t.link)}" target="_blank" rel="noopener noreferrer" title="${esc(t.link)}">🔗</a>` : ''}</td>`,
+                 edit: t => `<td><input type="url" id="e_link" value="${esc(t.link)}" placeholder="https://"></td>` },
+    note:      { label: '備考', w: 360, view: noteCell, edit: noteCell }, // 幅は画面の余りを吸収 (最低160px)
+    act:       { label: '', w: 130, // 常に右端に固定
+                 view: () => '<td class="act"><button data-a="edit">編集</button> <button class="danger" data-a="del">削除</button></td>',
+                 edit: () => '<td class="act"><button class="primary" data-a="ok">保存</button> <button data-a="cancel">取消</button></td>' },
+  };
+  const DEFAULT_ORDER = Object.keys(COLS);
+  const readJSON = key => { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } };
+  let colOrder = (() => {
+    const a = readJSON('taskColOrder2'); if (!Array.isArray(a)) return DEFAULT_ORDER.slice();
+    const known = a.filter(k => k in COLS && k !== 'act');
+    return [...known, ...DEFAULT_ORDER.filter(k => k !== 'act' && !known.includes(k)), 'act'];
+  })();
+  let colW = { ...Object.fromEntries(DEFAULT_ORDER.map(k => [k, COLS[k].w])), ...(readJSON('taskColW2') || {}) };
+  const saveLayout = () => { try { localStorage.setItem('taskColOrder2', JSON.stringify(colOrder)); localStorage.setItem('taskColW2', JSON.stringify(colW)); } catch {} };
+
   function rowHtml(t) {
-    const editing = t.id === editingId;
-    const statusSel = `<select data-f="status">${opts(STATUSES, t.status)}</select>`;
-    const noteArea = `<textarea data-f="note" rows="1">${esc(t.note)}</textarea>`;
-    if (editing) {
-      return `<tr class="editing" data-id="${t.id}">
-        <td class="name"><input type="text" id="e_name" value="${esc(t.name)}" placeholder="タスク名"></td>
-        <td><input type="date" id="e_start" value="${esc(t.start)}"></td>
-        <td><input type="date" id="e_due" value="${esc(t.due)}"></td>
-        <td><select id="e_priority">${opts(PRIORITIES, t.priority)}</select></td>
-        <td>${statusSel}</td>
-        ${remainCell(t)}
-        <td><input type="url" id="e_link" value="${esc(t.link)}" placeholder="https://"></td>
-        <td>${noteArea}</td>
-        <td class="act"><button class="primary" data-a="ok">保存</button> <button data-a="cancel">取消</button></td>
-      </tr>`;
-    }
-    const link = t.link ? `<a href="${esc(t.link)}" target="_blank" rel="noopener noreferrer">${esc(t.link.replace(/^https?:\/\//, '').slice(0, 30))}${t.link.length > 38 ? '…' : ''}</a>` : '';
-    return `<tr class="${t.status === '完了' ? 'done' : ''}" data-id="${t.id}">
-      <td class="name">${esc(t.name) || '<span style="color:var(--muted)">(無題)</span>'}</td>
-      <td>${esc(t.start)}</td>
-      <td>${esc(t.due)}</td>
-      <td><span class="badge p-${esc(t.priority)}">${esc(t.priority)}</span></td>
-      <td>${statusSel}</td>
-      ${remainCell(t)}
-      <td>${link}</td>
-      <td>${noteArea}</td>
-      <td class="act"><button data-a="edit">編集</button> <button class="danger" data-a="del">削除</button></td>
-    </tr>`;
+    if (t.id === editingId) return `<tr class="editing" data-id="${t.id}">${colOrder.map(k => COLS[k].edit(t)).join('')}</tr>`;
+    const r = remainDays(t);
+    const cls = t.status === '完了' ? 'done' : r === null ? '' : r < 0 ? 'overdue' : r === 0 ? 'today' : '';
+    return `<tr class="${cls}" data-id="${t.id}">${colOrder.map(k => COLS[k].view(t)).join('')}</tr>`;
+  }
+
+  function renderHead() {
+    $('thead').innerHTML = '<tr>' + colOrder.map(k => {
+      const c = COLS[k];
+      const arrow = c.sort && c.sort === sort.k ? (sort.dir > 0 ? '▲' : '▼') : '';
+      return `<th data-key="${k}"${c.sort ? ` class="sortable" data-sort="${c.sort}"` : ''}${k !== 'act' ? ' draggable="true" title="ドラッグで列を移動"' : ''}>${c.label}${c.sort ? ` <span class="arrow">${arrow}</span>` : ''}<span class="rs"></span></th>`;
+    }).join('') + '</tr>';
+  }
+
+  function applyWidths() {
+    // 編集中はリンク入力欄のために一時的に幅を確保
+    const ws = colOrder.map(k => k === 'link' && editingId ? Math.max(colW[k], 220) : colW[k]);
+    // 備考列だけ幅指定なし: 画面幅いっぱいに広げ、余った幅を備考が吸収する (他の列の合計+備考の最小幅を下回ったら横スクロール)
+    $('cols').innerHTML = colOrder.map((k, i) => k === 'note' ? '<col>' : `<col style="width:${ws[i]}px">`).join('');
+    $('tbl').style.width = '100%';
+    $('tbl').style.minWidth = colOrder.reduce((a, k, i) => a + (k === 'note' ? 160 : ws[i]), 0) + 'px';
+  }
+
+  function bindHead() {
+    const head = $('thead');
+    // 並び替え
+    head.addEventListener('click', e => {
+      if (e.target.closest('.rs')) return;
+      const th = e.target.closest('th[data-sort]'); if (!th) return;
+      sort = { k: th.dataset.sort, dir: sort.k === th.dataset.sort ? -sort.dir : 1 };
+      render();
+    });
+    // 列幅 (境界をドラッグ / ダブルクリックで初期幅)
+    head.addEventListener('dblclick', e => {
+      const h = e.target.closest('.rs'); if (!h) return;
+      const k = h.parentNode.dataset.key; colW[k] = COLS[k].w; saveLayout(); applyWidths();
+    });
+    head.addEventListener('pointerdown', e => {
+      const h = e.target.closest('.rs'); if (!h) return;
+      const th = h.parentNode, k = th.dataset.key;
+      e.preventDefault(); th.draggable = false; h.setPointerCapture(e.pointerId); h.classList.add('drag');
+      const x0 = e.clientX, w0 = th.offsetWidth;
+      const move = ev => { colW[k] = Math.max(40, w0 + ev.clientX - x0); applyWidths(); };
+      const up = () => {
+        h.classList.remove('drag'); th.draggable = k !== 'act';
+        h.removeEventListener('pointermove', move); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up);
+        saveLayout();
+      };
+      h.addEventListener('pointermove', move); h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
+    });
+    // 列の移動 (見出しをドラッグ&ドロップ。操作列は右端固定)
+    let dragKey = null;
+    const marks = () => head.querySelectorAll('th').forEach(t => t.classList.remove('drop-l', 'drop-r', 'dragging'));
+    const isLeft = (e, th) => th.dataset.key === 'act' || e.clientX < th.getBoundingClientRect().left + th.offsetWidth / 2;
+    head.addEventListener('dragstart', e => {
+      const th = e.target.closest('th'); if (!th) return;
+      dragKey = th.dataset.key; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragKey);
+      th.classList.add('dragging');
+    });
+    head.addEventListener('dragover', e => {
+      const th = e.target.closest('th'); if (!dragKey || !th) return;
+      e.preventDefault();
+      head.querySelectorAll('th').forEach(t => t.classList.remove('drop-l', 'drop-r'));
+      th.classList.add(isLeft(e, th) ? 'drop-l' : 'drop-r');
+    });
+    head.addEventListener('drop', e => {
+      const th = e.target.closest('th'); if (!dragKey || !th) return;
+      e.preventDefault();
+      if (th.dataset.key !== dragKey) {
+        const o = colOrder.filter(k => k !== dragKey);
+        let i = o.indexOf(th.dataset.key); if (!isLeft(e, th)) i++;
+        o.splice(i, 0, dragKey);
+        colOrder = [...o.filter(k => k !== 'act'), 'act'];
+        saveLayout();
+      }
+      dragKey = null; render();
+    });
+    head.addEventListener('dragend', () => { dragKey = null; marks(); });
+
+    $('btnColReset').onclick = () => {
+      colOrder = DEFAULT_ORDER.slice(); colW = Object.fromEntries(DEFAULT_ORDER.map(k => [k, COLS[k].w]));
+      saveLayout(); render();
+    };
   }
 
   function render() {
+    renderHead();
+    applyWidths();
     const list = visibleTasks();
+    const fresh = newId && tasks.find(x => x.id === newId);
+    if (fresh) { const i = list.indexOf(fresh); if (i >= 0) list.splice(i, 1); list.unshift(fresh); } // 追加直後の行は常に先頭で入力
     $('rows').innerHTML = list.map(rowHtml).join('');
     $('empty').hidden = list.length > 0;
-    $('count').textContent = `${list.length} / ${tasks.length} 件`;
-    document.querySelectorAll('th.sortable').forEach(th => {
-      th.querySelector('.arrow').textContent = th.dataset.k === sort.k ? (sort.dir > 0 ? '▲' : '▼') : '';
-    });
+    const hours = list.reduce((a, t) => a + (Number(t.effort) || 0), 0);
+    $('count').textContent = `${list.length} / ${tasks.length - (newId ? 1 : 0)} 件 ・ 工数計 ${Math.round(hours * 100) / 100}h`;
+    renderSummary();
     autoGrow();
     const nm = $('e_name'); if (nm && !nm.dataset.focused) { nm.dataset.focused = 1; nm.focus(); }
   }
@@ -352,64 +554,123 @@
   function bindFilters() {
     $('fStatus').innerHTML = '<option value="">すべて</option>' + opts(STATUSES);
     $('fPriority').innerHTML = '<option value="">すべて</option>' + opts(PRIORITIES);
+    $('fDueRel').innerHTML = '<option value="">指定なし</option>' + DUE_RELS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
     const on = (id, key, ev = 'input', get = e => e.target.value) =>
-      $(id).addEventListener(ev, e => { filters[key] = get(e); render(); });
+      $(id).addEventListener(ev, e => { filters[key] = get(e); $('fPreset').value = ''; render(); });
     on('fText', 'text'); on('fStatus', 'status', 'change'); on('fPriority', 'priority', 'change');
     on('fFrom', 'from', 'change'); on('fTo', 'to', 'change');
     on('fHideDone', 'hideDone', 'change', e => e.target.checked);
-    on('fOverdue', 'overdue', 'change', e => e.target.checked);
+    on('fDueRel', 'dueRel', 'change');
     $('btnClear').onclick = () => {
-      Object.assign(filters, { text:'', status:'', priority:'', from:'', to:'', hideDone:false, overdue:false });
-      ['fText','fStatus','fPriority','fFrom','fTo'].forEach(i => $(i).value = '');
-      ['fHideDone','fOverdue'].forEach(i => $(i).checked = false);
-      render();
+      Object.assign(filters, { text:'', status:'', priority:'', from:'', to:'', hideDone:true, dueRel:'' });
+      $('fPreset').value = '';
+      syncFilterInputs(); render();
+    };
+
+    // サマリーのチップで期日フィルタを切替
+    $('summary').addEventListener('click', e => {
+      const c = e.target.closest('[data-due]'); if (!c) return;
+      filters.dueRel = filters.dueRel === c.dataset.due ? '' : c.dataset.due;
+      $('fPreset').value = ''; syncFilterInputs(); render();
+    });
+
+    // 保存した条件
+    $('fPreset').addEventListener('change', e => {
+      const p = presets.find(x => x.name === e.target.value); if (!p) return;
+      Object.assign(filters, { text:'', status:'', priority:'', from:'', to:'', hideDone:false, dueRel:'' }, p.filters);
+      if (p.sort) sort = { ...p.sort };
+      syncFilterInputs(); render();
+    });
+    $('btnPresetSave').onclick = () => {
+      const name = (prompt('この絞り込み条件の名前を入力してください', $('fPreset').value) || '').trim();
+      if (!name) return;
+      const entry = { name, filters: { ...filters }, sort: { ...sort } };
+      const i = presets.findIndex(p => p.name === name);
+      if (i >= 0) { if (!confirm(`「${name}」は既にあります。上書きしますか？`)) return; presets[i] = entry; }
+      else presets.push(entry);
+      save(); renderPresets(name);
+    };
+    $('btnPresetDel').onclick = () => {
+      const name = $('fPreset').value;
+      if (!name) return alert('削除する条件を「保存した条件」から選んでください');
+      if (!confirm(`条件「${name}」を削除しますか？`)) return;
+      presets = presets.filter(p => p.name !== name);
+      save(); renderPresets();
     };
   }
 
-  function bindTable() {
-    document.querySelectorAll('th.sortable').forEach(th => th.onclick = () => {
-      sort = { k: th.dataset.k, dir: sort.k === th.dataset.k ? -sort.dir : 1 };
-      render();
-    });
+  function syncFilterInputs() {
+    $('fText').value = filters.text; $('fStatus').value = filters.status; $('fPriority').value = filters.priority;
+    $('fFrom').value = filters.from; $('fTo').value = filters.to;
+    $('fHideDone').checked = filters.hideDone; $('fDueRel').value = filters.dueRel;
+  }
 
+  function renderPresets(selected = '') {
+    $('fPreset').innerHTML = '<option value="">(選択)</option>' + presets.map(p => `<option value="${esc(p.name)}">${esc(p.name)}</option>`).join('');
+    $('fPreset').value = selected;
+    $('btnPresetDel').disabled = !presets.length;
+  }
+
+  function bindTable() {
     $('rows').addEventListener('click', e => {
       const btn = e.target.closest('button[data-a]'); if (!btn) return;
       const tr = btn.closest('tr'); const t = tasks.find(x => x.id === tr.dataset.id); if (!t) return;
       switch (btn.dataset.a) {
         case 'edit': editingId = t.id; render(); break;
         case 'cancel':
-          if (!t.name && !t.due && !t.start && !t.note) tasks = tasks.filter(x => x !== t); // 新規の空行は破棄
-          editingId = null; render(); break;
+          if (t.id === newId) tasks = tasks.filter(x => x !== t); // 追加直後の未確定レコードは破棄
+          editingId = null; newId = null; render(); break;
+        case 'start':
+          if (confirm(`「${t.name || '(無題)'}」に着手しますか？\n着手日を本日にし、ステータスを「進行中」にします。`)) {
+            pushUndo('着手開始');
+            t.start = localISO(today());
+            setStatus(t, '進行中');
+            save(); render();
+          }
+          break;
         case 'ok': {
           const name = $('e_name').value.trim();
           const start = $('e_start').value, due = $('e_due').value;
           if (!name) { alert('タスク名を入力してください'); $('e_name').focus(); return; }
           if (start && due && start > due) { alert('着手日が期日より後になっています'); return; }
-          Object.assign(t, { name, start, due, priority: $('e_priority').value, link: $('e_link').value.trim() });
-          editingId = null; save(); render(); break;
+          pushUndo(t.id === newId ? '追加' : '編集');
+          Object.assign(t, { name, created: $('e_created').value, start, due, priority: $('e_priority').value, link: $('e_link').value.trim() });
+          editingId = null; newId = null; save(); render(); break;
         }
         case 'del':
-          if (confirm(`「${t.name || '(無題)'}」を削除しますか？`)) { tasks = tasks.filter(x => x !== t); save(); render(); }
+          if (confirm(`「${t.name || '(無題)'}」を削除しますか？\n(「元に戻す」で復元できます)`)) { pushUndo('削除'); tasks = tasks.filter(x => x !== t); save(); render(); }
           break;
       }
+    });
+
+    // 編集中の行で Enter → 保存 (日本語入力の変換確定中は除く / 備考の改行は Shift+Enter ではなく通常のまま)
+    $('rows').addEventListener('keydown', e => {
+      if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
+      if (!e.target.matches('tr.editing input')) return;
+      e.preventDefault();
+      e.target.closest('tr').querySelector('button[data-a="ok"]').click();
     });
 
     // 備考・ステータスは常時編集 (編集中でもその場で反映)
     $('rows').addEventListener('change', e => {
       const f = e.target.dataset.f; if (!f) return;
       const t = tasks.find(x => x.id === e.target.closest('tr').dataset.id); if (!t) return;
-      t[f] = e.target.value;
+      pushUndo({ status: 'ステータス変更', effort: '工数の変更' }[f] || '備考の変更');
+      if (f === 'status') setStatus(t, e.target.value);
+      else if (f === 'effort') t.effort = e.target.value === '' ? '' : Math.max(0, Number(e.target.value));
+      else t[f] = e.target.value;
       save();
       if (f === 'status' && editingId !== t.id) render(); // フィルタ・残日数・完了表示に反映
     });
     $('rows').addEventListener('input', e => { if (e.target.tagName === 'TEXTAREA') autoGrow(e.target.closest('td')); });
 
     $('btnAdd').onclick = () => {
-      if (editingId) { const cur = tasks.find(x => x.id === editingId); if (cur && !cur.name) tasks = tasks.filter(x => x !== cur); }
-      const t = { id: uid(), name: '', start: today().toISOString().slice(0,10), due: '', priority: '中', status: '未着手', link: '', note: '' };
+      if (newId) tasks = tasks.filter(x => x.id !== newId); // 未確定の前回分は破棄
+      const t = { id: uid(), name: '', created: localISO(today()), start: '', due: '', priority: '中', status: '未着手', link: '', note: '' };
       // 新規行が絞り込みで消えないよう、フィルタを解除
       $('btnClear').click();
-      tasks.push(t); editingId = t.id; render();
+      tasks.push(t); editingId = newId = t.id; render();
+      document.querySelector('.tablewrap').scrollTop = 0;
     };
   }
 
@@ -419,22 +680,42 @@
     try {
       if (await handle.queryPermission({ mode: 'readwrite' }) !== 'granted') return;
       const f = await handle.getFile();
-      if (f.lastModified > lastModified) { await saving; await loadFile(); render(); setState('外部の更新を読み込みました', 'ok'); }
+      if (f.lastModified > lastModified) { await saving; await loadFile(); resetHistory(); renderPresets($('fPreset').value); render(); setState('外部の更新を読み込みました', 'ok'); }
     } catch (e) { console.warn(e); }
   }
 
   // ---------- 起動 ----------
   async function init() {
-    bindFilters(); bindTable();
+    bindFilters(); bindTable(); bindHead();
     $('btnNew').onclick = createFile;
     $('btnOpen').onclick = openFile;
+    $('btnUndo').onclick = undo;
+    $('btnRedo').onclick = redo;
+    document.addEventListener('keydown', e => {
+      if (!(e.ctrlKey || e.metaKey) || $('app').hidden) return;
+      if (e.target.closest('input:not([type=checkbox]), textarea, select')) return; // 入力中はブラウザ標準の取消
+      const k = e.key.toLowerCase();
+      if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+      else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
+    });
     $('btnOther').onclick = () => { $('reconnect').hidden = true; showWelcome(); };
     $('btnChange').onclick = () => { editingId = null; showWelcome(); };
     $('btnReconnect').onclick = async () => {
       try {
-        if (!(await ensurePermission(true))) return alert('許可されませんでした');
+        // ユーザー操作の直後に呼ぶ必要があるため、事前の await を挟まず直接 requestPermission する
+        $('reconnectMsg').textContent = '許可を確認しています… ブラウザの上部/アドレスバー付近に出るダイアログで「許可」を選んでください。';
+        const hint = setTimeout(() => { $('reconnectMsg').textContent = '許可ダイアログが出ない場合、このブラウザ/開き方では許可を取れません。「同じファイルを選び直す」を押してください。'; }, 4000);
+        let st;
+        try { st = await handle.requestPermission({ mode: 'readwrite' }); } finally { clearTimeout(hint); }
+        if (st !== 'granted') return showReconnect(`許可が得られませんでした(状態: ${st})。「同じファイルを選び直す」を試してください。`);
         await loadFile(); showApp();
-      } catch (e) { showReconnect('読み込みに失敗しました: ' + e.message); }
+      } catch (e) { showReconnect(`再接続に失敗しました: ${e.name}: ${e.message}。「同じファイルを選び直す」を試してください。`); }
+    };
+    $('btnRepick').onclick = async () => {
+      try {
+        const [h] = await showOpenFilePicker({ types: pickerTypes, startIn: handle || undefined });
+        await useHandle(h, false);
+      } catch (e) { if (e.name !== 'AbortError') showReconnect(`読み込みに失敗しました: ${e.name}: ${e.message}`); }
     };
     document.addEventListener('visibilitychange', () => { if (!document.hidden) checkExternalChange(); });
     window.addEventListener('focus', checkExternalChange);
