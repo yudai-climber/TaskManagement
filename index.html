@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>タスク管理</title>
+<style>
+  :root {
+    --bg:#f5f6f8; --card:#fff; --text:#1f2933; --muted:#6b7785; --line:#e1e5ea;
+    --accent:#2563eb; --danger:#dc2626; --warn:#d97706; --ok:#16a34a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14171c; --card:#1d222a; --text:#e6e9ee; --muted:#93a0af; --line:#2f3743; --accent:#5b8def; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.5 "Yu Gothic UI","Meiryo",system-ui,sans-serif; }
+  header { display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:12px 20px; background:var(--card); border-bottom:1px solid var(--line); }
+  header h1 { font-size:18px; margin:0; }
+  #fileInfo { color:var(--muted); font-size:12px; }
+  #saveState { font-size:12px; margin-left:auto; color:var(--muted); }
+  main { padding:16px 20px; }
+  button, input, select, textarea { font:inherit; color:inherit; }
+  button { cursor:pointer; border:1px solid var(--line); background:var(--card); border-radius:6px; padding:5px 12px; }
+  button:hover { border-color:var(--accent); }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.danger { color:var(--danger); }
+  button:disabled { opacity:.5; cursor:default; }
+  input, select, textarea { border:1px solid var(--line); background:var(--card); border-radius:5px; padding:4px 6px; }
+  input:focus, select:focus, textarea:focus { outline:2px solid var(--accent); outline-offset:-1px; }
+
+  #welcome { max-width:520px; margin:60px auto; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:28px; text-align:center; }
+  #welcome p { color:var(--muted); }
+  #welcome .row { display:flex; gap:10px; justify-content:center; margin-top:16px; }
+  .banner { background:#fff7e6; border:1px solid #f5d28a; color:#7a4b00; padding:10px 14px; border-radius:8px; margin-bottom:12px; display:flex; gap:12px; align-items:center; }
+  @media (prefers-color-scheme: dark) { .banner { background:#3a2e12; border-color:#6b5320; color:#f3d9a0; } }
+
+  .filters { display:flex; flex-wrap:wrap; gap:10px; align-items:end; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 12px; margin-bottom:12px; }
+  .filters label { display:flex; flex-direction:column; font-size:11px; color:var(--muted); gap:2px; }
+  .filters .chk { flex-direction:row; align-items:center; gap:4px; font-size:13px; color:var(--text); padding-bottom:5px; }
+  .count { margin-left:auto; color:var(--muted); font-size:12px; padding-bottom:6px; }
+
+  .tablewrap { background:var(--card); border:1px solid var(--line); border-radius:8px; overflow:auto; }
+  table { border-collapse:collapse; width:100%; min-width:1000px; }
+  th, td { padding:8px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+  th { position:sticky; top:0; background:var(--card); font-size:12px; color:var(--muted); white-space:nowrap; user-select:none; }
+  th.sortable { cursor:pointer; }
+  th.sortable:hover { color:var(--accent); }
+  tr:last-child td { border-bottom:none; }
+  tr.done td { opacity:.55; }
+  tr.editing td { background:rgba(37,99,235,.06); }
+  td.name { font-weight:600; min-width:180px; }
+  td input[type=text], td input[type=url] { width:100%; }
+  td textarea { width:100%; min-width:180px; min-height:30px; resize:vertical; }
+  td select { max-width:100%; }
+  td.act { white-space:nowrap; }
+  td.act button { padding:3px 8px; font-size:12px; }
+  td.remain { white-space:nowrap; font-weight:600; }
+  .over { color:var(--danger); }
+  .soon { color:var(--warn); }
+  .badge { display:inline-block; padding:1px 8px; border-radius:10px; font-size:12px; font-weight:600; }
+  .p-高 { background:#fde2e2; color:#b91c1c; }
+  .p-中 { background:#fdf0d0; color:#92600a; }
+  .p-低 { background:#e0ecff; color:#1d4ed8; }
+  td a { color:var(--accent); word-break:break-all; }
+  .empty { padding:30px; text-align:center; color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>📋 タスク管理</h1>
+  <span id="fileInfo"></span>
+  <button id="btnChange" hidden>ファイル変更</button>
+  <span id="saveState"></span>
+</header>
+
+<main>
+  <div id="welcome" hidden>
+    <h2>データファイルを選択してください</h2>
+    <p>OneDrive などのフォルダに JSON ファイルとして保存されます。<br>
+       一度選ぶと次回以降は自動で同じファイルを開きます。</p>
+    <div class="row">
+      <button class="primary" id="btnNew">新規ファイルを作成</button>
+      <button id="btnOpen">既存ファイルを開く</button>
+    </div>
+    <p id="unsupported" hidden style="color:var(--danger)">このブラウザは File System Access API に未対応です。Chrome / Edge で開いてください。</p>
+  </div>
+
+  <div id="reconnect" class="banner" hidden>
+    <span id="reconnectMsg">前回のファイルへのアクセス許可が必要です。</span>
+    <button class="primary" id="btnReconnect">再接続</button>
+    <button id="btnOther">別のファイルを選ぶ</button>
+  </div>
+
+  <div id="app" hidden>
+    <div class="filters">
+      <label>キーワード<input type="search" id="fText" placeholder="タスク名・備考・リンク"></label>
+      <label>ステータス<select id="fStatus"></select></label>
+      <label>優先度<select id="fPriority"></select></label>
+      <label>期日(から)<input type="date" id="fFrom"></label>
+      <label>期日(まで)<input type="date" id="fTo"></label>
+      <label class="chk"><input type="checkbox" id="fHideDone"> 完了を隠す</label>
+      <label class="chk"><input type="checkbox" id="fOverdue"> 期限切れのみ</label>
+      <button id="btnClear">クリア</button>
+      <span class="count" id="count"></span>
+      <button class="primary" id="btnAdd">＋ タスク追加</button>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="sortable" data-k="name">タスク名 <span class="arrow"></span></th>
+            <th class="sortable" data-k="start">着手日 <span class="arrow"></span></th>
+            <th class="sortable" data-k="due">期日 <span class="arrow"></span></th>
+            <th class="sortable" data-k="priority">優先度 <span class="arrow"></span></th>
+            <th class="sortable" data-k="status">ステータス <span class="arrow"></span></th>
+            <th class="sortable" data-k="remain">残日数 <span class="arrow"></span></th>
+            <th>リンク</th>
+            <th>備考</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="empty" id="empty" hidden>該当するタスクがありません</div>
+    </div>
+  </div>
+</main>
+
+<script>
+(() => {
+  'use strict';
+  const STATUSES = ['未着手', '進行中', '保留', '完了'];
+  const PRIORITIES = ['高', '中', '低'];
+  const PRIO_ORDER = { '高': 0, '中': 1, '低': 2 };
+  const STATUS_ORDER = { '未着手': 0, '進行中': 1, '保留': 2, '完了': 3 };
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  // ---------- IndexedDB (ファイルハンドル保存) ----------
+  const idb = {
+    open() {
+      return new Promise((res, rej) => {
+        const r = indexedDB.open('task-manager', 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('kv');
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => rej(r.error);
+      });
+    },
+    async get(k) {
+      const db = await this.open();
+      return new Promise((res, rej) => {
+        const q = db.transaction('kv').objectStore('kv').get(k);
+        q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error);
+      });
+    },
+    async set(k, v) {
+      const db = await this.open();
+      return new Promise((res, rej) => {
+        const t = db.transaction('kv', 'readwrite');
+        t.objectStore('kv').put(v, k);
+        t.oncomplete = () => res(); t.onerror = () => rej(t.error);
+      });
+    }
+  };
+
+  // ---------- 状態 ----------
+  let handle = null;
+  let tasks = [];
+  let editingId = null;
+  let lastModified = 0;
+  let saving = Promise.resolve();
+  let sort = { k: 'due', dir: 1 };
+  const filters = { text:'', status:'', priority:'', from:'', to:'', hideDone:false, overdue:false };
+
+  // ---------- 日付 ----------
+  const today = () => { const d = new Date(); d.setHours(0,0,0,0); return d; };
+  const parseDate = s => { if (!s) return null; const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); };
+  const remainDays = t => {
+    const due = parseDate(t.due);
+    return due ? Math.round((due - today()) / 86400000) : null;
+  };
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+  // ---------- ファイル入出力 ----------
+  const setState = (msg, cls) => { const e = $('saveState'); e.textContent = msg; e.style.color = cls === 'err' ? 'var(--danger)' : cls === 'ok' ? 'var(--ok)' : 'var(--muted)'; };
+
+  async function loadFile() {
+    const f = await handle.getFile();
+    const text = await f.text();
+    lastModified = f.lastModified;
+    if (!text.trim()) { tasks = []; return; }
+    const data = JSON.parse(text);
+    tasks = Array.isArray(data) ? data : (data.tasks || []);
+  }
+
+  function save() {
+    setState('保存中…');
+    saving = saving.then(async () => {
+      try {
+        const w = await handle.createWritable();
+        await w.write(JSON.stringify({ version: 1, tasks }, null, 2));
+        await w.close();
+        lastModified = (await handle.getFile()).lastModified;
+        setState('保存しました ' + new Date().toLocaleTimeString(), 'ok');
+      } catch (e) {
+        console.error(e);
+        setState('保存失敗: ' + e.message, 'err');
+      }
+    });
+    return saving;
+  }
+
+  async function ensurePermission(interactive) {
+    const opts = { mode: 'readwrite' };
+    if (await handle.queryPermission(opts) === 'granted') return true;
+    if (interactive && await handle.requestPermission(opts) === 'granted') return true;
+    return false;
+  }
+
+  async function useHandle(h, isNew) {
+    handle = h;
+    await idb.set('handle', h);
+    if (isNew) { tasks = []; await save(); } else { await loadFile(); }
+    showApp();
+  }
+
+  const pickerTypes = [{ description: 'タスクデータ (JSON)', accept: { 'application/json': ['.json'] } }];
+
+  async function createFile() {
+    try {
+      const h = await showSaveFilePicker({ suggestedName: 'tasks.json', types: pickerTypes });
+      await useHandle(h, true);
+    } catch (e) { if (e.name !== 'AbortError') alert('作成に失敗しました: ' + e.message); }
+  }
+  async function openFile() {
+    try {
+      const [h] = await showOpenFilePicker({ types: pickerTypes });
+      await useHandle(h, false);
+    } catch (e) { if (e.name !== 'AbortError') alert('読み込みに失敗しました: ' + e.message); }
+  }
+
+  // ---------- 画面切替 ----------
+  function showWelcome() {
+    $('welcome').hidden = false; $('app').hidden = true; $('reconnect').hidden = true; $('btnChange').hidden = true;
+    $('fileInfo').textContent = '';
+  }
+  function showReconnect(msg) {
+    $('welcome').hidden = true; $('app').hidden = true; $('reconnect').hidden = false; $('btnChange').hidden = true;
+    $('reconnectMsg').textContent = msg || '前回のファイル「' + handle.name + '」へのアクセス許可が必要です。';
+    $('fileInfo').textContent = '';
+  }
+  function showApp() {
+    $('welcome').hidden = true; $('reconnect').hidden = true; $('app').hidden = false; $('btnChange').hidden = false;
+    $('fileInfo').textContent = '📄 ' + handle.name;
+    setState('');
+    render();
+  }
+
+  // ---------- フィルタ・ソート ----------
+  function visibleTasks() {
+    const q = filters.text.trim().toLowerCase();
+    let list = tasks.filter(t => {
+      if (filters.status && t.status !== filters.status) return false;
+      if (filters.priority && t.priority !== filters.priority) return false;
+      if (filters.hideDone && t.status === '完了') return false;
+      if (filters.from && (!t.due || t.due < filters.from)) return false;
+      if (filters.to && (!t.due || t.due > filters.to)) return false;
+      if (filters.overdue) { const r = remainDays(t); if (t.status === '完了' || r === null || r >= 0) return false; }
+      if (q && !(`${t.name} ${t.note} ${t.link}`.toLowerCase().includes(q))) return false;
+      return true;
+    });
+    const val = t => {
+      switch (sort.k) {
+        case 'priority': return PRIO_ORDER[t.priority] ?? 9;
+        case 'status': return STATUS_ORDER[t.status] ?? 9;
+        case 'remain': return t.status === '完了' ? null : remainDays(t);
+        case 'name': return t.name || '';
+        default: return t[sort.k] || null;
+      }
+    };
+    list.sort((a, b) => {
+      const x = val(a), y = val(b);
+      if (x === null && y === null) return 0;
+      if (x === null) return 1;      // 空は常に末尾
+      if (y === null) return -1;
+      return (x < y ? -1 : x > y ? 1 : 0) * sort.dir;
+    });
+    return list;
+  }
+
+  // ---------- 描画 ----------
+  const opts = (arr, sel) => arr.map(v => `<option${v === sel ? ' selected' : ''}>${v}</option>`).join('');
+
+  function remainCell(t) {
+    if (t.status === '完了') return '<td class="remain">—</td>';
+    const r = remainDays(t);
+    if (r === null) return '<td class="remain">—</td>';
+    if (r < 0) return `<td class="remain over">${-r}日超過</td>`;
+    if (r === 0) return '<td class="remain soon">今日</td>';
+    return `<td class="remain${r <= 3 ? ' soon' : ''}">あと${r}日</td>`;
+  }
+
+  function rowHtml(t) {
+    const editing = t.id === editingId;
+    const statusSel = `<select data-f="status">${opts(STATUSES, t.status)}</select>`;
+    const noteArea = `<textarea data-f="note" rows="1">${esc(t.note)}</textarea>`;
+    if (editing) {
+      return `<tr class="editing" data-id="${t.id}">
+        <td class="name"><input type="text" id="e_name" value="${esc(t.name)}" placeholder="タスク名"></td>
+        <td><input type="date" id="e_start" value="${esc(t.start)}"></td>
+        <td><input type="date" id="e_due" value="${esc(t.due)}"></td>
+        <td><select id="e_priority">${opts(PRIORITIES, t.priority)}</select></td>
+        <td>${statusSel}</td>
+        ${remainCell(t)}
+        <td><input type="url" id="e_link" value="${esc(t.link)}" placeholder="https://"></td>
+        <td>${noteArea}</td>
+        <td class="act"><button class="primary" data-a="ok">保存</button> <button data-a="cancel">取消</button></td>
+      </tr>`;
+    }
+    const link = t.link ? `<a href="${esc(t.link)}" target="_blank" rel="noopener noreferrer">${esc(t.link.replace(/^https?:\/\//, '').slice(0, 30))}${t.link.length > 38 ? '…' : ''}</a>` : '';
+    return `<tr class="${t.status === '完了' ? 'done' : ''}" data-id="${t.id}">
+      <td class="name">${esc(t.name) || '<span style="color:var(--muted)">(無題)</span>'}</td>
+      <td>${esc(t.start)}</td>
+      <td>${esc(t.due)}</td>
+      <td><span class="badge p-${esc(t.priority)}">${esc(t.priority)}</span></td>
+      <td>${statusSel}</td>
+      ${remainCell(t)}
+      <td>${link}</td>
+      <td>${noteArea}</td>
+      <td class="act"><button data-a="edit">編集</button> <button class="danger" data-a="del">削除</button></td>
+    </tr>`;
+  }
+
+  function render() {
+    const list = visibleTasks();
+    $('rows').innerHTML = list.map(rowHtml).join('');
+    $('empty').hidden = list.length > 0;
+    $('count').textContent = `${list.length} / ${tasks.length} 件`;
+    document.querySelectorAll('th.sortable').forEach(th => {
+      th.querySelector('.arrow').textContent = th.dataset.k === sort.k ? (sort.dir > 0 ? '▲' : '▼') : '';
+    });
+    autoGrow();
+    const nm = $('e_name'); if (nm && !nm.dataset.focused) { nm.dataset.focused = 1; nm.focus(); }
+  }
+
+  function autoGrow(root = document) {
+    root.querySelectorAll('td textarea').forEach(a => { a.style.height = 'auto'; a.style.height = Math.max(30, a.scrollHeight + 2) + 'px'; });
+  }
+
+  // ---------- イベント ----------
+  function bindFilters() {
+    $('fStatus').innerHTML = '<option value="">すべて</option>' + opts(STATUSES);
+    $('fPriority').innerHTML = '<option value="">すべて</option>' + opts(PRIORITIES);
+    const on = (id, key, ev = 'input', get = e => e.target.value) =>
+      $(id).addEventListener(ev, e => { filters[key] = get(e); render(); });
+    on('fText', 'text'); on('fStatus', 'status', 'change'); on('fPriority', 'priority', 'change');
+    on('fFrom', 'from', 'change'); on('fTo', 'to', 'change');
+    on('fHideDone', 'hideDone', 'change', e => e.target.checked);
+    on('fOverdue', 'overdue', 'change', e => e.target.checked);
+    $('btnClear').onclick = () => {
+      Object.assign(filters, { text:'', status:'', priority:'', from:'', to:'', hideDone:false, overdue:false });
+      ['fText','fStatus','fPriority','fFrom','fTo'].forEach(i => $(i).value = '');
+      ['fHideDone','fOverdue'].forEach(i => $(i).checked = false);
+      render();
+    };
+  }
+
+  function bindTable() {
+    document.querySelectorAll('th.sortable').forEach(th => th.onclick = () => {
+      sort = { k: th.dataset.k, dir: sort.k === th.dataset.k ? -sort.dir : 1 };
+      render();
+    });
+
+    $('rows').addEventListener('click', e => {
+      const btn = e.target.closest('button[data-a]'); if (!btn) return;
+      const tr = btn.closest('tr'); const t = tasks.find(x => x.id === tr.dataset.id); if (!t) return;
+      switch (btn.dataset.a) {
+        case 'edit': editingId = t.id; render(); break;
+        case 'cancel':
+          if (!t.name && !t.due && !t.start && !t.note) tasks = tasks.filter(x => x !== t); // 新規の空行は破棄
+          editingId = null; render(); break;
+        case 'ok': {
+          const name = $('e_name').value.trim();
+          const start = $('e_start').value, due = $('e_due').value;
+          if (!name) { alert('タスク名を入力してください'); $('e_name').focus(); return; }
+          if (start && due && start > due) { alert('着手日が期日より後になっています'); return; }
+          Object.assign(t, { name, start, due, priority: $('e_priority').value, link: $('e_link').value.trim() });
+          editingId = null; save(); render(); break;
+        }
+        case 'del':
+          if (confirm(`「${t.name || '(無題)'}」を削除しますか？`)) { tasks = tasks.filter(x => x !== t); save(); render(); }
+          break;
+      }
+    });
+
+    // 備考・ステータスは常時編集 (編集中でもその場で反映)
+    $('rows').addEventListener('change', e => {
+      const f = e.target.dataset.f; if (!f) return;
+      const t = tasks.find(x => x.id === e.target.closest('tr').dataset.id); if (!t) return;
+      t[f] = e.target.value;
+      save();
+      if (f === 'status' && editingId !== t.id) render(); // フィルタ・残日数・完了表示に反映
+    });
+    $('rows').addEventListener('input', e => { if (e.target.tagName === 'TEXTAREA') autoGrow(e.target.closest('td')); });
+
+    $('btnAdd').onclick = () => {
+      if (editingId) { const cur = tasks.find(x => x.id === editingId); if (cur && !cur.name) tasks = tasks.filter(x => x !== cur); }
+      const t = { id: uid(), name: '', start: today().toISOString().slice(0,10), due: '', priority: '中', status: '未着手', link: '', note: '' };
+      // 新規行が絞り込みで消えないよう、フィルタを解除
+      $('btnClear').click();
+      tasks.push(t); editingId = t.id; render();
+    };
+  }
+
+  // ---------- 外部更新 (OneDrive 同期) の検知 ----------
+  async function checkExternalChange() {
+    if (!handle || $('app').hidden || editingId) return;
+    try {
+      if (await handle.queryPermission({ mode: 'readwrite' }) !== 'granted') return;
+      const f = await handle.getFile();
+      if (f.lastModified > lastModified) { await saving; await loadFile(); render(); setState('外部の更新を読み込みました', 'ok'); }
+    } catch (e) { console.warn(e); }
+  }
+
+  // ---------- 起動 ----------
+  async function init() {
+    bindFilters(); bindTable();
+    $('btnNew').onclick = createFile;
+    $('btnOpen').onclick = openFile;
+    $('btnOther').onclick = () => { $('reconnect').hidden = true; showWelcome(); };
+    $('btnChange').onclick = () => { editingId = null; showWelcome(); };
+    $('btnReconnect').onclick = async () => {
+      try {
+        if (!(await ensurePermission(true))) return alert('許可されませんでした');
+        await loadFile(); showApp();
+      } catch (e) { showReconnect('読み込みに失敗しました: ' + e.message); }
+    };
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) checkExternalChange(); });
+    window.addEventListener('focus', checkExternalChange);
+    setInterval(checkExternalChange, 30000);
+
+    if (!window.showOpenFilePicker) {
+      showWelcome(); $('unsupported').hidden = false; $('btnNew').disabled = $('btnOpen').disabled = true; return;
+    }
+    try {
+      handle = await idb.get('handle');
+    } catch (e) { console.warn(e); }
+    if (!handle) return showWelcome();
+    try {
+      if (await ensurePermission(false)) { await loadFile(); showApp(); }
+      else showReconnect();
+    } catch (e) {
+      showReconnect('「' + handle.name + '」を読み込めません: ' + e.message);
+    }
+  }
+  init();
+})();
+</script>
+</body>
+</html>
