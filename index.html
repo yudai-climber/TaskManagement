@@ -36,10 +36,22 @@
   .banner button { padding:2px 8px; font-size:12px; }
   @media (prefers-color-scheme: dark) { .banner { background:#3a2e12; border-color:#6b5320; color:#f3d9a0; } }
 
-  .filters { display:flex; flex-wrap:wrap; gap:10px; align-items:end; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 12px; margin-bottom:12px; }
-  .filters label { display:flex; flex-direction:column; font-size:11px; color:var(--muted); gap:2px; }
-  .filters .chk { flex-direction:row; align-items:center; gap:4px; font-size:13px; color:var(--text); padding-bottom:5px; }
-  .count { margin-left:auto; color:var(--muted); font-size:12px; padding-bottom:6px; }
+  .filters { display:flex; flex-wrap:wrap; gap:8px; align-items:center; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin-bottom:12px; }
+  .filters select, .filters input[type=search] { padding:5px 8px; }
+  .filters .chk { display:inline-flex; align-items:center; gap:4px; font-size:13px; white-space:nowrap; }
+  .filters .sep { width:1px; align-self:stretch; background:var(--line); margin:2px 2px; }
+  .search { display:flex; }
+  .search input { width:200px; border-top-right-radius:0; border-bottom-right-radius:0; }
+  .search select { border-left:0; border-top-left-radius:0; border-bottom-left-radius:0; color:var(--muted); }
+  button.ghost { border-color:transparent; background:transparent; color:var(--muted); }
+  .more { position:relative; }
+  .more summary { list-style:none; cursor:pointer; border:1px solid var(--line); border-radius:6px; padding:4px 10px; user-select:none; }
+  .more summary::-webkit-details-marker { display:none; }
+  .more[open] summary { border-color:var(--accent); }
+  .more .menu { position:absolute; z-index:60; top:calc(100% + 4px); left:0; min-width:200px; background:var(--card); border:1px solid var(--line); border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,.3); padding:4px; display:flex; flex-direction:column; }
+  .more .menu button { border:0; text-align:left; background:transparent; padding:7px 10px; }
+  .more .menu button:hover { background:rgba(37,99,235,.15); }
+  .count { margin-left:auto; color:var(--muted); font-size:12px; }
 
   .tablewrap { background:var(--card); border:1px solid var(--line); border-radius:8px; overflow:auto; }
   table { border-collapse:collapse; table-layout:fixed; }
@@ -55,10 +67,27 @@
   td input[type=date], td input[type=number], td select { width:100%; min-width:0; max-width:100%; }
   input[type=number] { appearance:textfield; -moz-appearance:textfield; }
   a.linkicon { text-decoration:none; font-size:16px; }
+  .linkedit { display:flex; flex-direction:column; gap:4px; }
+  .lrow { display:flex; gap:4px; align-items:center; }
+  .lrow input.l-title { width:36%; flex:none; }
+  .lrow input.l-url { flex:1; min-width:0; width:auto; }
+  .lrow .lrm, .linkedit .ladd { padding:2px 8px; font-size:12px; flex:none; }
+  .linkedit .ladd { align-self:flex-start; }
+  .chip.hold { color:var(--muted); border-color:var(--muted); }
+  .remain.hold { color:var(--muted); font-weight:400; }
+  tr.hold td { color:var(--muted); }
+  .adv { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 12px; margin-bottom:12px; display:flex; flex-direction:column; gap:8px; }
+  .adv-head { display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:13px; }
+  .adv-head > span:last-child, .hint { color:var(--muted); font-size:12px; }
+  #conds { display:flex; flex-direction:column; gap:6px; }
+  .crow { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .crow input { min-width:160px; }
+  .crow .lrm { padding:2px 8px; font-size:12px; }
   .linkbtn { padding:1px 6px; font-size:14px; white-space:nowrap; }
   .linkbtn span { font-size:11px; font-weight:700; margin-left:2px; color:var(--accent); }
   .linkmenu { position:fixed; z-index:100; background:var(--card); border:1px solid var(--line); border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,.3); padding:4px; max-width:min(420px, 92vw); }
   .linkmenu a { display:block; padding:6px 10px; border-radius:5px; color:var(--text); text-decoration:none; overflow-wrap:anywhere; }
+  .linkmenu a small { display:block; color:var(--muted); font-size:11px; margin-left:22px; }
   .linkmenu a:hover { background:rgba(37,99,235,.15); color:var(--accent); }
   th, td { padding:8px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
   th { position:sticky; top:0; background:var(--card); font-size:12px; color:var(--muted); white-space:nowrap; user-select:none; }
@@ -69,7 +98,7 @@
   tr.editing td { background:rgba(37,99,235,.06); }
   td.name { font-weight:600; min-width:180px; }
   td input[type=text], td input[type=url] { width:100%; }
-  td textarea { width:100%; min-width:180px; min-height:30px; resize:vertical; }
+  td textarea { width:100%; min-width:0; min-height:30px; resize:vertical; }
   td select { max-width:100%; }
   td.act { white-space:nowrap; }
   td.act button { padding:3px 8px; font-size:12px; }
@@ -132,20 +161,37 @@
   <div id="app" hidden>
     <div class="summary" id="summary"></div>
     <div class="filters">
-      <label>キーワード<input type="search" id="fText" placeholder="タスク名・備考・リンク"></label>
-      <label>ステータス<select id="fStatus"></select></label>
-      <label>優先度<select id="fPriority"></select></label>
-      <label>期日(から)<input type="date" id="fFrom"></label>
-      <label>期日(まで)<input type="date" id="fTo"></label>
+      <div class="search">
+        <input type="search" id="fText" placeholder="🔍 キーワード検索">
+        <select id="fTextField" title="検索対象"></select>
+      </div>
+      <select id="fStatus"></select>
+      <select id="fPriority"></select>
+      <select id="fDueRel"></select>
       <label class="chk"><input type="checkbox" id="fHideDone" checked> 完了を隠す</label>
-      <label>期日の状態<select id="fDueRel"></select></label>
-      <button id="btnClear">クリア</button>
-      <label>保存した条件<select id="fPreset"></select></label>
-      <button id="btnPresetSave">条件を保存</button>
-      <button id="btnPresetDel" class="danger">条件を削除</button>
-      <button id="btnColReset" title="見出しをドラッグで列の移動、境界をドラッグで列幅を変更できます">列を初期状態に</button>
+      <button id="btnAdv" title="AND / OR で複数の条件を組み合わせられます">詳細条件 ▾</button>
+      <button id="btnClear" class="ghost">クリア</button>
+      <span class="sep"></span>
+      <select id="fPreset" title="保存した条件"></select>
+      <details class="more" id="more">
+        <summary title="条件の保存・列の初期化">⋯</summary>
+        <div class="menu">
+          <button id="btnPresetSave">現在の条件を保存…</button>
+          <button id="btnPresetDel" class="danger">選択中の条件を削除</button>
+          <button id="btnColReset" title="見出しのドラッグで列の移動、境界のドラッグで列幅を変更できます">列の並び・幅を初期化</button>
+        </div>
+      </details>
       <span class="count" id="count"></span>
       <button class="primary" id="btnAdd">＋ タスク追加</button>
+    </div>
+    <div class="adv" id="adv" hidden>
+      <div class="adv-head">
+        <span>次の条件を</span>
+        <select id="advMode"><option value="and">すべて満たす (AND)</option><option value="or">いずれか満たす (OR)</option></select>
+        <span>タスクを表示します(上の絞り込みとは AND で組み合わさります)</span>
+      </div>
+      <div id="conds"></div>
+      <div><button id="btnAddCond">＋ 条件を追加</button></div>
     </div>
     <div class="tablewrap">
       <table id="tbl">
@@ -204,7 +250,9 @@
   let lastModified = 0;
   let saving = Promise.resolve();
   let sort = { k: 'due', dir: 1 };
-  const filters = { text:'', status:'', priority:'', from:'', to:'', hideDone:true, dueRel:'' };
+  const defaultFilters = () => ({ text:'', textField:'all', status:'', priority:'', hideDone:true, dueRel:'', mode:'and', conds:[] });
+  const filters = defaultFilters();
+  let advOpen = false;         // 詳細条件パネルの開閉
   let presets = [];            // 保存した絞り込み条件 (ファイルに一緒に保存)
   let undoStack = [], redoStack = [];
   const DUE_RELS = [['overdue','期限切れ'], ['today','今日'], ['d3','明日〜3日後'], ['d7','7日以内(今日含む)'], ['none','期日なし']];
@@ -237,7 +285,12 @@
     const data = JSON.parse(text);
     tasks = Array.isArray(data) ? data : (data.tasks || []);
     // 旧形式 (link: 文字列) → links: 配列 へ移行
-    tasks.forEach(t => { if (!Array.isArray(t.links)) t.links = t.link ? [t.link] : []; delete t.link; });
+    // 文字列だけのリンクは { url, title(別名) } 形式へ
+    tasks.forEach(t => {
+      if (!Array.isArray(t.links)) t.links = t.link ? [t.link] : [];
+      t.links = t.links.map(l => typeof l === 'string' ? { url: l, title: '' } : { url: l.url || '', title: l.title || '' });
+      delete t.link;
+    });
     presets = (!Array.isArray(data) && data.presets) || [];
   }
 
@@ -344,7 +397,7 @@
   // ---------- フィルタ・ソート ----------
   function matchDueRel(t, rel) {
     if (rel === 'none') return !t.due;
-    if (t.status === '完了') return false;
+    if (t.status === '完了' || t.status === '保留') return false; // 保留中は期日超過などのアラート対象外
     const r = remainDays(t); if (r === null) return false;
     switch (rel) {
       case 'overdue': return r < 0;
@@ -354,16 +407,78 @@
     }
     return true;
   }
+  // ---------- 詳細条件 (項目 × 演算子 × 値 を AND / OR で組み合わせ) ----------
+  const toPairs = a => a.map(v => [v, v]);
+  const FIELD_DEFS = {
+    all:       { label: '全テキスト', type: 'text' },
+    name:      { label: 'タスク名', type: 'text' },
+    note:      { label: '備考', type: 'text' },
+    link:      { label: 'リンク(別名・URL)', type: 'text' },
+    status:    { label: 'ステータス', type: 'enum', options: toPairs(STATUSES) },
+    priority:  { label: '優先度', type: 'enum', options: toPairs(PRIORITIES) },
+    dueRel:    { label: '期日の状態', type: 'enum', options: DUE_RELS },
+    due:       { label: '期日', type: 'date' },
+    start:     { label: '着手日', type: 'date' },
+    created:   { label: '起票日', type: 'date' },
+    completed: { label: '完了日', type: 'date' },
+    effort:    { label: '工数(h)', type: 'num' },
+    remain:    { label: '残日数', type: 'num' },
+  };
+  const OPS = {
+    text: [['has', 'を含む'], ['not', 'を含まない'], ['eq', 'と一致']],
+    enum: [['is', 'である'], ['isnot', 'でない']],
+    date: [['on', 'と同じ'], ['before', '以前'], ['after', '以降'], ['empty', 'が未設定'], ['set', 'が設定済み']],
+    num:  [['gte', '以上'], ['lte', '以下'], ['eq', 'と等しい'], ['empty', 'が未設定']],
+  };
+  const textOf = (t, f) => {
+    const links = (t.links || []).map(l => `${l.title} ${l.url}`).join(' ');
+    return f === 'name' ? (t.name || '') : f === 'note' ? (t.note || '') : f === 'link' ? links : `${t.name || ''} ${t.note || ''} ${links}`;
+  };
+  const needsValue = c => c.op !== 'empty' && c.op !== 'set';
+  const condReady = c => !!FIELD_DEFS[c.field] && (!needsValue(c) || String(c.value ?? '') !== '');
+  function matchCond(t, c) {
+    const d = FIELD_DEFS[c.field], v = c.value;
+    if (d.type === 'text') {
+      const hay = textOf(t, c.field).toLowerCase(), q = String(v).toLowerCase();
+      return c.op === 'not' ? !hay.includes(q) : c.op === 'eq' ? hay === q : hay.includes(q);
+    }
+    if (d.type === 'enum') {
+      const m = c.field === 'dueRel' ? matchDueRel(t, v) : t[c.field] === v;
+      return c.op === 'isnot' ? !m : m;
+    }
+    if (d.type === 'date') {
+      const x = t[c.field] || '';
+      switch (c.op) {
+        case 'empty': return !x;
+        case 'set': return !!x;
+        case 'on': return x === v;
+        case 'before': return !!x && x <= v;
+        case 'after': return !!x && x >= v;
+      }
+      return true;
+    }
+    const x = c.field === 'remain' ? (t.status === '完了' ? null : remainDays(t)) : (t.effort === '' || t.effort == null ? null : Number(t.effort));
+    const n = Number(v);
+    switch (c.op) {
+      case 'empty': return x === null;
+      case 'gte': return x !== null && x >= n;
+      case 'lte': return x !== null && x <= n;
+      case 'eq': return x !== null && x === n;
+    }
+    return true;
+  }
+
   function visibleTasks() {
     const q = filters.text.trim().toLowerCase();
+    const conds = filters.conds.filter(condReady);
+    const advOk = t => !conds.length || (filters.mode === 'or' ? conds.some(c => matchCond(t, c)) : conds.every(c => matchCond(t, c)));
     let list = tasks.filter(t => {
       if (filters.status && t.status !== filters.status) return false;
       if (filters.priority && t.priority !== filters.priority) return false;
       if (filters.hideDone && t.status === '完了') return false;
-      if (filters.from && (!t.due || t.due < filters.from)) return false;
-      if (filters.to && (!t.due || t.due > filters.to)) return false;
       if (filters.dueRel && !matchDueRel(t, filters.dueRel)) return false;
-      if (q && !(`${t.name} ${t.note} ${(t.links || []).join(' ')}`.toLowerCase().includes(q))) return false;
+      if (q && !textOf(t, filters.textField).toLowerCase().includes(q)) return false;
+      if (!advOk(t)) return false;
       return true;
     });
     const val = t => {
@@ -391,6 +506,7 @@
   function remainCell(t) {
     if (t.status === '完了') return '<td class="remain">—</td>';
     const r = remainDays(t);
+    if (t.status === '保留') return `<td class="remain hold" title="${r === null ? '' : r < 0 ? -r + '日超過' : 'あと' + r + '日'}">保留中</td>`;
     if (r === null) return '<td class="remain">—</td>';
     if (r < 0) return `<td class="remain over">${-r}日超過</td>`;
     if (r === 0) return '<td class="remain soon">今日</td>';
@@ -410,7 +526,9 @@
     const chips = [['overdue','over','超過'], ['today','today','今日'], ['d3','soon','明日〜3日後']]
       .map(([rel, cls, label]) => [rel, cls, label, cnt(rel)]).filter(c => c[3] > 0)
       .map(([rel, cls, label, n]) => `<button class="chip ${cls}${filters.dueRel === rel ? ' active' : ''}" data-due="${rel}">${label} <span>${n}件</span></button>`);
-    $('summary').innerHTML = chips.length ? '期日アラート: ' + chips.join('') : '期限切れ・直近の期日のタスクはありません';
+    const holds = tasks.filter(t => t.id !== newId && t.status === '保留').length;
+    const holdChip = holds ? `<button class="chip hold${filters.status === '保留' ? ' active' : ''}" data-status="保留">保留中 <span>${holds}件</span></button>` : '';
+    $('summary').innerHTML = (chips.length ? '期日アラート: ' + chips.join('') : '期限切れ・直近の期日のタスクはありません') + holdChip;
   }
 
   // ---------- 列定義 (並び順・幅はドラッグで変更でき、ブラウザに記憶) ----------
@@ -418,12 +536,18 @@
   const noteCell = t => `<td><textarea data-f="note" rows="1">${esc(t.note)}</textarea></td>`;
   const isHttp = u => /^https?:\/\//i.test(u);
   const linkLabel = u => { try { const x = new URL(u); const s = x.hostname + (x.pathname === '/' ? '' : x.pathname) + x.search; return s.length > 48 ? s.slice(0, 47) + '…' : s; } catch { return u; } };
+  const validLinks = t => (t.links || []).filter(l => isHttp(l.url));
+  const linkTip = l => (l.title ? l.title + '\n' : '') + l.url;
   function linkCell(t) {
-    const ls = (t.links || []).filter(isHttp);
+    const ls = validLinks(t);
     if (!ls.length) return '<td></td>';
-    if (ls.length === 1) return `<td><a class="linkicon" href="${esc(ls[0])}" target="_blank" rel="noopener noreferrer" title="${esc(ls[0])}">🔗</a></td>`;
-    return `<td><button class="linkbtn" data-a="links" title="リンクが${ls.length}件あります">🔗<span>${ls.length}</span></button></td>`;
+    if (ls.length === 1) return `<td><a class="linkicon" href="${esc(ls[0].url)}" target="_blank" rel="noopener noreferrer" title="${esc(linkTip(ls[0]))}">🔗</a></td>`;
+    return `<td><button class="linkbtn" data-a="links" title="${esc(ls.map(l => l.title || linkLabel(l.url)).join('\n'))}">🔗<span>${ls.length}</span></button></td>`;
   }
+  // リンク編集: 「別名」「URL」を行ごとの入力欄で扱う
+  const linkRow = (l = { title: '', url: '' }) =>
+    `<div class="lrow"><input type="text" class="l-title" placeholder="別名(省略可)" value="${esc(l.title)}"><input type="url" class="l-url" placeholder="https://" value="${esc(l.url)}"><button type="button" class="lrm" data-a="lrm" title="この行を削除">×</button></div>`;
+  const linkEdit = t => `<td><div class="linkedit">${((t.links || []).length ? t.links : [undefined]).map(linkRow).join('')}<button type="button" class="ladd" data-a="ladd">＋ リンク追加</button></div></td>`;
   const effortCell = t => `<td><input type="number" class="effort" data-f="effort" min="0" step="0.5" value="${esc(t.effort ?? '')}" placeholder="h"></td>`;
   const dateEdit = (id, v) => `<td><input type="date" id="${id}" value="${esc(v)}"></td>`;
   const COLS = {
@@ -446,7 +570,7 @@
     remain:    { label: '残日数', sort: 'remain', w: 90, view: remainCell, edit: remainCell },
     completed: { label: '完了日', sort: 'completed', w: 110, view: completedCell, edit: completedCell },
     link:      { label: 'リンク', w: 56, view: linkCell,
-                 edit: t => `<td><textarea id="e_link" rows="3" placeholder="https://...&#10;(複数は改行で区切る)">${esc((t.links || []).join('\n'))}</textarea></td>` },
+                 edit: linkEdit },
     note:      { label: '備考', w: 360, view: noteCell, edit: noteCell }, // 幅は画面の余りを吸収 (最低160px)
     act:       { label: '', w: 130, // 常に右端に固定
                  view: () => '<td class="act"><button data-a="edit">編集</button> <button class="danger" data-a="del">削除</button></td>',
@@ -465,7 +589,7 @@
   function rowHtml(t) {
     if (t.id === editingId) return `<tr class="editing" data-id="${t.id}">${colOrder.map(k => COLS[k].edit(t)).join('')}</tr>`;
     const r = remainDays(t);
-    const cls = t.status === '完了' ? 'done' : r === null ? '' : r < 0 ? 'overdue' : r === 0 ? 'today' : '';
+    const cls = t.status === '完了' ? 'done' : t.status === '保留' ? 'hold' : r === null ? '' : r < 0 ? 'overdue' : r === 0 ? 'today' : '';
     return `<tr class="${cls}" data-id="${t.id}">${colOrder.map(k => COLS[k].view(t)).join('')}</tr>`;
   }
 
@@ -479,7 +603,11 @@
 
   function applyWidths() {
     // 編集中はリンク入力欄のために一時的に幅を確保
-    const ws = colOrder.map(k => k === 'link' && editingId ? Math.max(colW[k], 220) : colW[k]);
+    // 画面幅に収まる範囲で広げる (備考の最低幅160pxは確保し、横スクロールを出さない)
+    const avail = $('tbl').parentNode.clientWidth;
+    const others = colOrder.reduce((a, k) => a + (k === 'link' || k === 'note' ? 0 : colW[k]), 0);
+    const editLinkW = Math.max(colW.link, Math.min(300, avail - others - 160));
+    const ws = colOrder.map(k => k === 'link' && editingId ? editLinkW : colW[k]);
     // 備考列だけ幅指定なし: 画面幅いっぱいに広げ、余った幅を備考が吸収する (他の列の合計+備考の最小幅を下回ったら横スクロール)
     $('cols').innerHTML = colOrder.map((k, i) => k === 'note' ? '<col>' : `<col style="width:${ws[i]}px">`).join('');
     $('tbl').style.width = '100%';
@@ -579,8 +707,8 @@
     closeLinkMenu(); if (reopen) return; // 同じボタンをもう一度押したら閉じる
     const m = document.createElement('div');
     m.className = 'linkmenu'; m.dataset.id = t.id;
-    m.innerHTML = (t.links || []).filter(isHttp).map(u =>
-      `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer" title="${esc(u)}">🔗 ${esc(linkLabel(u))}</a>`).join('');
+    m.innerHTML = validLinks(t).map(l =>
+      `<a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer" title="${esc(l.url)}">🔗 ${l.title ? `<b>${esc(l.title)}</b><small>${esc(linkLabel(l.url))}</small>` : esc(linkLabel(l.url))}</a>`).join('');
     document.body.appendChild(m);
     const r = btn.getBoundingClientRect();
     m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + 'px';
@@ -599,39 +727,74 @@
 
   // ---------- イベント ----------
   function bindFilters() {
-    $('fStatus').innerHTML = '<option value="">すべて</option>' + opts(STATUSES);
-    $('fPriority').innerHTML = '<option value="">すべて</option>' + opts(PRIORITIES);
-    $('fDueRel').innerHTML = '<option value="">指定なし</option>' + DUE_RELS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+    $('fStatus').innerHTML = '<option value="">ステータス: すべて</option>' + opts(STATUSES);
+    $('fPriority').innerHTML = '<option value="">優先度: すべて</option>' + opts(PRIORITIES);
+    $('fDueRel').innerHTML = '<option value="">期日: 指定なし</option>' + DUE_RELS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
     const on = (id, key, ev = 'input', get = e => e.target.value) =>
       $(id).addEventListener(ev, e => { filters[key] = get(e); $('fPreset').value = ''; render(); });
-    on('fText', 'text'); on('fStatus', 'status', 'change'); on('fPriority', 'priority', 'change');
-    on('fFrom', 'from', 'change'); on('fTo', 'to', 'change');
+    $('fTextField').innerHTML = Object.entries(FIELD_DEFS).filter(([, f]) => f.type === 'text').map(([k, f]) => `<option value="${k}">${f.label}</option>`).join('');
+    on('fText', 'text'); on('fTextField', 'textField', 'change');
+    on('fStatus', 'status', 'change'); on('fPriority', 'priority', 'change');
     on('fHideDone', 'hideDone', 'change', e => e.target.checked);
     on('fDueRel', 'dueRel', 'change');
     $('btnClear').onclick = () => {
-      Object.assign(filters, { text:'', status:'', priority:'', from:'', to:'', hideDone:true, dueRel:'' });
+      Object.assign(filters, defaultFilters());
       $('fPreset').value = '';
       syncFilterInputs(); render();
     };
 
-    // サマリーのチップで期日フィルタを切替
+    // サマリーのチップで期日・保留のフィルタを切替
     $('summary').addEventListener('click', e => {
-      const c = e.target.closest('[data-due]'); if (!c) return;
-      filters.dueRel = filters.dueRel === c.dataset.due ? '' : c.dataset.due;
+      const c = e.target.closest('[data-due], [data-status]'); if (!c) return;
+      if (c.dataset.due) filters.dueRel = filters.dueRel === c.dataset.due ? '' : c.dataset.due;
+      else filters.status = filters.status === c.dataset.status ? '' : c.dataset.status;
       $('fPreset').value = ''; syncFilterInputs(); render();
+    });
+
+    const more = $('more');
+    more.addEventListener('click', e => { if (e.target.closest('.menu button')) more.open = false; });
+    document.addEventListener('mousedown', e => { if (more.open && !more.contains(e.target)) more.open = false; });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') more.open = false; });
+
+    // 詳細条件 (AND / OR)
+    $('btnAdv').onclick = () => { advOpen = !advOpen; renderConds(); };
+    $('advMode').addEventListener('change', e => { filters.mode = e.target.value; condsChanged(false); });
+    $('btnAddCond').onclick = () => {
+      filters.conds.push({ field: 'all', op: 'has', value: '' });
+      advOpen = true; renderConds();
+      const last = $('conds').querySelector('.crow:last-child [data-p="value"]'); if (last) last.focus();
+    };
+    $('conds').addEventListener('input', e => {
+      const el = e.target; if (el.tagName !== 'INPUT' || el.dataset.p !== 'value') return;
+      filters.conds[+el.dataset.i].value = el.value; condsChanged(false);   // 入力中もリアルタイムに絞り込み
+    });
+    $('conds').addEventListener('change', e => {
+      const el = e.target, p = el.dataset.p; if (!p) return;
+      const c = filters.conds[+el.dataset.i];
+      if (el.tagName === 'INPUT') { c.value = el.value; return condsChanged(false); }
+      if (p === 'field') { const d = FIELD_DEFS[el.value]; c.field = el.value; c.op = OPS[d.type][0][0]; c.value = d.type === 'enum' ? d.options[0][0] : ''; }
+      else c[p] = el.value;
+      condsChanged(true);
+    });
+    $('conds').addEventListener('click', e => {
+      const x = e.target.closest('[data-x]'); if (!x) return;
+      filters.conds.splice(+x.dataset.x, 1); condsChanged(true);
     });
 
     // 保存した条件
     $('fPreset').addEventListener('change', e => {
       const p = presets.find(x => x.name === e.target.value); if (!p) return;
-      Object.assign(filters, { text:'', status:'', priority:'', from:'', to:'', hideDone:false, dueRel:'' }, p.filters);
+      Object.assign(filters, defaultFilters(), { hideDone: false }, JSON.parse(JSON.stringify(p.filters)));
+      if (filters.from) filters.conds.push({ field: 'due', op: 'after', value: filters.from });
+      if (filters.to) filters.conds.push({ field: 'due', op: 'before', value: filters.to });
+      delete filters.from; delete filters.to;
       if (p.sort) sort = { ...p.sort };
       syncFilterInputs(); render();
     });
     $('btnPresetSave').onclick = () => {
       const name = (prompt('この絞り込み条件の名前を入力してください', $('fPreset').value) || '').trim();
       if (!name) return;
-      const entry = { name, filters: { ...filters }, sort: { ...sort } };
+      const entry = { name, filters: JSON.parse(JSON.stringify(filters)), sort: { ...sort } };
       const i = presets.findIndex(p => p.name === name);
       if (i >= 0) { if (!confirm(`「${name}」は既にあります。上書きしますか？`)) return; presets[i] = entry; }
       else presets.push(entry);
@@ -646,14 +809,44 @@
     };
   }
 
+  function condRowHtml(c, i) {
+    const d = FIELD_DEFS[c.field];
+    const fsel = `<select data-i="${i}" data-p="field">${Object.entries(FIELD_DEFS).map(([k, f]) => `<option value="${k}"${k === c.field ? ' selected' : ''}>${f.label}</option>`).join('')}</select>`;
+    const osel = `<select data-i="${i}" data-p="op">${OPS[d.type].map(([k, l]) => `<option value="${k}"${k === c.op ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
+    let val = '';
+    if (needsValue(c)) {
+      val = d.type === 'enum'
+        ? `<select data-i="${i}" data-p="value">${d.options.map(([k, l]) => `<option value="${esc(k)}"${k === c.value ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`
+        : `<input data-i="${i}" data-p="value" type="${d.type === 'date' ? 'date' : d.type === 'num' ? 'number' : 'text'}"${d.type === 'num' ? ' step="0.5"' : ''} value="${esc(c.value)}" placeholder="${d.type === 'text' ? '検索する文字' : ''}">`;
+    }
+    return `<div class="crow">${fsel}${osel}${val}<button type="button" class="lrm" data-x="${i}" title="この条件を削除">×</button></div>`;
+  }
+  function updateAdvButton() {
+    const n = filters.conds.filter(condReady).length;
+    $('btnAdv').textContent = '詳細条件' + (n ? ` (${n})` : '') + (advOpen ? ' ▴' : ' ▾');
+  }
+  function renderConds() {
+    $('conds').innerHTML = filters.conds.map(condRowHtml).join('') || '<div class="hint">条件がありません。「＋ 条件を追加」で追加できます。</div>';
+    $('advMode').value = filters.mode;
+    $('adv').hidden = !advOpen;
+    updateAdvButton();
+  }
+  function condsChanged(rebuild) {
+    $('fPreset').value = '';
+    if (rebuild) renderConds(); else updateAdvButton();
+    render();
+  }
+
   function syncFilterInputs() {
+    if (filters.conds.length) advOpen = true;
+    renderConds();
+    $('fTextField').value = filters.textField;
     $('fText').value = filters.text; $('fStatus').value = filters.status; $('fPriority').value = filters.priority;
-    $('fFrom').value = filters.from; $('fTo').value = filters.to;
     $('fHideDone').checked = filters.hideDone; $('fDueRel').value = filters.dueRel;
   }
 
   function renderPresets(selected = '') {
-    $('fPreset').innerHTML = '<option value="">(選択)</option>' + presets.map(p => `<option value="${esc(p.name)}">${esc(p.name)}</option>`).join('');
+    $('fPreset').innerHTML = '<option value="">保存した条件…</option>' + presets.map(p => `<option value="${esc(p.name)}">${esc(p.name)}</option>`).join('');
     $('fPreset').value = selected;
     $('btnPresetDel').disabled = !presets.length;
   }
@@ -665,6 +858,16 @@
       switch (btn.dataset.a) {
         case 'edit': editingId = t.id; render(); break;
         case 'links': showLinkMenu(btn, t); break;
+        case 'ladd': {
+          btn.insertAdjacentHTML('beforebegin', linkRow());
+          btn.previousElementSibling.querySelector('.l-title').focus(); break;
+        }
+        case 'lrm': {
+          const row = btn.closest('.lrow'), box = row.parentNode;
+          if (box.querySelectorAll('.lrow').length > 1) row.remove();
+          else row.querySelectorAll('input').forEach(i => i.value = ''); // 最後の1行は空にする
+          break;
+        }
         case 'cancel':
           if (t.id === newId) tasks = tasks.filter(x => x !== t); // 追加直後の未確定レコードは破棄
           editingId = null; newId = null; render(); break;
@@ -681,12 +884,17 @@
           const start = $('e_start').value, due = $('e_due').value;
           if (!name) { alert('タスク名を入力してください'); $('e_name').focus(); return; }
           if (start && due && start > due) { alert('着手日が期日より後になっています'); return; }
-          const links = $('e_link').value.split(/\r?\n/).map(s => s.trim()).filter(Boolean)
-            .map(u => /^[a-z][a-z0-9+.-]*:/i.test(u) ? u : 'https://' + u);
-          const bad = links.find(u => !isHttp(u));
-          if (bad) { alert('リンクは http:// か https:// で始まるURLのみ登録できます:\n' + bad); $('e_link').focus(); return; }
+          const seen = new Set(); const links = [];
+          for (const row of tr.querySelectorAll('.lrow')) {
+            const title = row.querySelector('.l-title').value.trim();
+            let url = row.querySelector('.l-url').value.trim();
+            if (!url) { if (title) { alert(`別名「${title}」に対応するURLが入力されていません`); row.querySelector('.l-url').focus(); return; } continue; }
+            if (!/^[a-z][a-z0-9+.-]*:/i.test(url)) url = 'https://' + url;
+            if (!isHttp(url)) { alert('リンクは http:// か https:// で始まるURLのみ登録できます: ' + url); row.querySelector('.l-url').focus(); return; }
+            if (!seen.has(url)) { seen.add(url); links.push({ title, url }); }
+          }
           pushUndo(t.id === newId ? '追加' : '編集');
-          Object.assign(t, { name, created: $('e_created').value, start, due, priority: $('e_priority').value, links: [...new Set(links)] });
+          Object.assign(t, { name, created: $('e_created').value, start, due, priority: $('e_priority').value, links });
           delete t.link;
           editingId = null; newId = null; save(); render(); break;
         }
@@ -773,6 +981,7 @@
         await useHandle(h, false);
       } catch (e) { if (e.name !== 'AbortError') showReconnect(`読み込みに失敗しました: ${e.name}: ${e.message}`); }
     };
+    window.addEventListener('resize', () => { if (!$('app').hidden) applyWidths(); });
     document.addEventListener('visibilitychange', () => { if (!document.hidden) checkExternalChange(); });
     window.addEventListener('focus', checkExternalChange);
     setInterval(checkExternalChange, 30000);
