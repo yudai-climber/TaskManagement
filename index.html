@@ -536,12 +536,17 @@
   const noteCell = t => `<td><textarea data-f="note" rows="1">${esc(t.note)}</textarea></td>`;
   const isHttp = u => /^https?:\/\//i.test(u);
   const linkLabel = u => { try { const x = new URL(u); const s = x.hostname + (x.pathname === '/' ? '' : x.pathname) + x.search; return s.length > 48 ? s.slice(0, 47) + '…' : s; } catch { return u; } };
+  // Teams のリンクは msteams: で直接アプリを開く (https のまま新しいタブで開くと、アプリ起動後に空のタブが残るため)
+  const TEAMS_RE = /^https?:\/\/(?:[\w-]+\.)?(?:teams\.microsoft\.com|teams\.live\.com|teams\.cloud\.microsoft)\//i;
+  const linkAttrs = url => TEAMS_RE.test(url)
+    ? `href="${esc(url.replace(/^https?:/i, 'msteams:'))}" data-web="${esc(url)}"`
+    : `href="${esc(url)}" target="_blank" rel="noopener noreferrer"`;
   const validLinks = t => (t.links || []).filter(l => isHttp(l.url));
   const linkTip = l => (l.title ? l.title + '\n' : '') + l.url;
   function linkCell(t) {
     const ls = validLinks(t);
     if (!ls.length) return '<td></td>';
-    if (ls.length === 1) return `<td><a class="linkicon" href="${esc(ls[0].url)}" target="_blank" rel="noopener noreferrer" title="${esc(linkTip(ls[0]))}">🔗</a></td>`;
+    if (ls.length === 1) return `<td><a class="linkicon" ${linkAttrs(ls[0].url)} title="${esc(linkTip(ls[0]))}">🔗</a></td>`;
     return `<td><button class="linkbtn" data-a="links" title="${esc(ls.map(l => l.title || linkLabel(l.url)).join('\n'))}">🔗<span>${ls.length}</span></button></td>`;
   }
   // リンク編集: 「別名」「URL」を行ごとの入力欄で扱う
@@ -708,7 +713,7 @@
     const m = document.createElement('div');
     m.className = 'linkmenu'; m.dataset.id = t.id;
     m.innerHTML = validLinks(t).map(l =>
-      `<a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer" title="${esc(l.url)}">🔗 ${l.title ? `<b>${esc(l.title)}</b><small>${esc(linkLabel(l.url))}</small>` : esc(linkLabel(l.url))}</a>`).join('');
+      `<a ${linkAttrs(l.url)} title="${esc(l.url)}">🔗 ${l.title ? `<b>${esc(l.title)}</b><small>${esc(linkLabel(l.url))}</small>` : esc(linkLabel(l.url))}</a>`).join('');
     document.body.appendChild(m);
     const r = btn.getBoundingClientRect();
     m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + 'px';
@@ -716,6 +721,10 @@
     linkMenu = m;
     m.addEventListener('click', e => { if (e.target.closest('a')) closeLinkMenu(); });
   }
+  document.addEventListener('click', e => {
+    const a = e.target.closest('a[data-web]');
+    if (a && (e.shiftKey || e.ctrlKey || e.metaKey)) { e.preventDefault(); window.open(a.dataset.web, '_blank', 'noopener'); }
+  });
   document.addEventListener('mousedown', e => { if (linkMenu && !e.target.closest('.linkmenu, .linkbtn')) closeLinkMenu(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLinkMenu(); });
   window.addEventListener('scroll', closeLinkMenu, true);
