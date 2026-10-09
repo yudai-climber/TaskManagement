@@ -88,6 +88,9 @@
   .linkbtn { padding:1px 6px; font-size:14px; white-space:nowrap; }
   .linkbtn span { font-size:11px; font-weight:700; margin-left:2px; color:var(--accent); }
   .linkmenu { position:fixed; z-index:100; background:var(--card); border:1px solid var(--line); border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,.3); padding:4px; max-width:min(420px, 92vw); }
+  .linkmenu .mi { display:flex; align-items:center; gap:4px; }
+  .linkmenu .mi a { flex:1; min-width:0; }
+  .linkmenu .cp { flex:none; padding:2px 8px; font-size:11px; }
   .linkmenu a { display:block; padding:6px 10px; border-radius:5px; color:var(--text); text-decoration:none; overflow-wrap:anywhere; }
   .linkmenu a small { display:block; color:var(--muted); font-size:11px; margin-left:22px; }
   .linkmenu a:hover { background:rgba(37,99,235,.15); color:var(--accent); }
@@ -538,23 +541,53 @@
   const statusSel = t => `<select data-f="status">${opts(STATUSES, t.status)}</select>`;
   const noteCell = t => `<td><textarea data-f="note" rows="1">${esc(t.note)}</textarea></td>`;
   const isHttp = u => /^https?:\/\//i.test(u);
-  const linkLabel = u => { try { const x = new URL(u); const s = x.hostname + (x.pathname === '/' ? '' : x.pathname) + x.search; return s.length > 48 ? s.slice(0, 47) + '…' : s; } catch { return u; } };
+  const isFileUrl = u => /^file:\/\//i.test(u);
+  const isLinkable = u => isHttp(u) || isFileUrl(u);
+  // ローカルのファイル/フォルダ: Windows パス (C:\... / \\server\share\...) ⇔ file:// URL
+  const encPath = p => encodeURI(p).replace(/#/g, '%23').replace(/\?/g, '%3F');
+  function pathToFileUrl(p) {
+    const s = p.replace(/\\/g, '/');
+    return /^[a-zA-Z]:\//.test(s) ? 'file:///' + encPath(s) : 'file:' + encPath(s);   // UNC: //server/share → file://server/share
+  }
+  function fileUrlToPath(u) {
+    try {
+      const x = new URL(u), p = decodeURIComponent(x.pathname);
+      if (x.host) return '\\\\' + x.host + p.replace(/\//g, '\\');
+      return p.replace(/^\//, '').replace(/\//g, '\\');
+    } catch { return u; }
+  }
+  const urlToInput = u => isFileUrl(u) ? fileUrlToPath(u) : u;
+  function normalizeLinkUrl(u) {
+    if (/^([a-zA-Z]:[\\/]|\\\\[^\\])/.test(u)) return pathToFileUrl(u);
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(u)) return 'https://' + u;
+    return u;
+  }
+  async function copyText(text) {
+    try { await navigator.clipboard.writeText(text); return true; }
+    catch {
+      const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+      try { return document.execCommand('copy'); } finally { ta.remove(); }
+    }
+  }
+  const linkLabel = u => { if (isFileUrl(u)) { const p = fileUrlToPath(u); return p.length > 56 ? '…' + p.slice(-55) : p; } try { const x = new URL(u); const s = x.hostname + (x.pathname === '/' ? '' : x.pathname) + x.search; return s.length > 48 ? s.slice(0, 47) + '…' : s; } catch { return u; } };
   // Teams のリンクは msteams: で直接アプリを開く (https のまま新しいタブで開くと、アプリ起動後に空のタブが残るため)
   const TEAMS_RE = /^https?:\/\/(?:[\w-]+\.)?(?:teams\.microsoft\.com|teams\.live\.com|teams\.cloud\.microsoft)\//i;
   const linkAttrs = url => TEAMS_RE.test(url)
     ? `href="${esc(url.replace(/^https?:/i, 'msteams:'))}" data-web="${esc(url)}"`
     : `href="${esc(url)}" target="_blank" rel="noopener noreferrer"`;
-  const validLinks = t => (t.links || []).filter(l => isHttp(l.url));
-  const linkTip = l => (l.title ? l.title + '\n' : '') + l.url;
+  const validLinks = t => (t.links || []).filter(l => isLinkable(l.url));
+  const linkTip = l => (l.title ? l.title + '\n' : '') + urlToInput(l.url);
   function linkCell(t) {
     const ls = validLinks(t);
     if (!ls.length) return '<td></td>';
-    if (ls.length === 1) return `<td><a class="linkicon" ${linkAttrs(ls[0].url)} title="${esc(linkTip(ls[0]))}">🔗</a></td>`;
-    return `<td><button class="linkbtn" data-a="links" title="${esc(ls.map(l => l.title || linkLabel(l.url)).join('\n'))}">🔗<span>${ls.length}</span></button></td>`;
+    if (ls.length === 1 && !isFileUrl(ls[0].url)) return `<td><a class="linkicon" ${linkAttrs(ls[0].url)} title="${esc(linkTip(ls[0]))}">🔗</a></td>`;
+    // 複数件、またはローカルファイル (開く / パスをコピー の選択が必要) はポップアップ
+    const icon = ls.length === 1 ? '📁' : `🔗<span>${ls.length}</span>`;
+    return `<td><button class="linkbtn" data-a="links" title="${esc(ls.map(l => l.title || linkLabel(l.url)).join('\n'))}">${icon}</button></td>`;
   }
   // リンク編集: 「別名」「URL」を行ごとの入力欄で扱う
   const linkRow = (l = { title: '', url: '' }) =>
-    `<div class="lrow"><input type="text" class="l-title" placeholder="別名(省略可)" value="${esc(l.title)}"><input type="url" class="l-url" placeholder="https://" value="${esc(l.url)}"><button type="button" class="lrm" data-a="lrm" title="この行を削除">×</button></div>`;
+    `<div class="lrow"><input type="text" class="l-title" placeholder="別名(省略可)" value="${esc(l.title)}"><input type="text" class="l-url" placeholder="https://… または C:\フォルダ\ファイル" value="${esc(urlToInput(l.url))}"><button type="button" class="lrm" data-a="lrm" title="この行を削除">×</button></div>`;
   const linkEdit = t => `<td><div class="linkedit">${((t.links || []).length ? t.links : [undefined]).map(linkRow).join('')}<button type="button" class="ladd" data-a="ladd">＋ リンク追加</button></div></td>`;
   const effortCell = t => `<td><input type="number" class="effort" data-f="effort" min="0" step="0.5" value="${esc(t.effort ?? '')}" placeholder="h"></td>`;
   const dateEdit = (id, v) => `<td><input type="date" id="${id}" value="${esc(v)}"></td>`;
@@ -724,14 +757,21 @@
     closeLinkMenu(); if (reopen) return; // 同じボタンをもう一度押したら閉じる
     const m = document.createElement('div');
     m.className = 'linkmenu'; m.dataset.id = t.id;
-    m.innerHTML = validLinks(t).map(l =>
-      `<a ${linkAttrs(l.url)} title="${esc(l.url)}">🔗 ${l.title ? `<b>${esc(l.title)}</b><small>${esc(linkLabel(l.url))}</small>` : esc(linkLabel(l.url))}</a>`).join('');
+    m.innerHTML = validLinks(t).map(l => {
+      const file = isFileUrl(l.url);
+      const a = `<a ${linkAttrs(l.url)} title="${esc(urlToInput(l.url))}">${file ? '📁' : '🔗'} ${l.title ? `<b>${esc(l.title)}</b><small>${esc(linkLabel(l.url))}</small>` : esc(linkLabel(l.url))}</a>`;
+      return `<div class="mi">${a}${file ? `<button type="button" class="cp" data-copy="${esc(fileUrlToPath(l.url))}" title="パスをクリップボードにコピー (エクスプローラーのアドレス欄に貼り付けて開けます)">パスをコピー</button>` : ''}</div>`;
+    }).join('');
     document.body.appendChild(m);
     const r = btn.getBoundingClientRect();
     m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + 'px';
     m.style.top = (r.bottom + m.offsetHeight + 12 > innerHeight ? Math.max(8, r.top - m.offsetHeight - 4) : r.bottom + 4) + 'px';
     linkMenu = m;
-    m.addEventListener('click', e => { if (e.target.closest('a')) closeLinkMenu(); });
+    m.addEventListener('click', async e => {
+      const cp = e.target.closest('.cp');
+      if (cp) { const ok = await copyText(cp.dataset.copy); cp.textContent = ok ? 'コピーしました' : 'コピー失敗'; setTimeout(closeLinkMenu, 700); return; }
+      if (e.target.closest('a')) closeLinkMenu();
+    });
   }
   document.addEventListener('click', e => {
     const a = e.target.closest('a[data-web]');
@@ -920,8 +960,8 @@
             const title = row.querySelector('.l-title').value.trim();
             let url = row.querySelector('.l-url').value.trim();
             if (!url) { if (title) { alert(`別名「${title}」に対応するURLが入力されていません`); row.querySelector('.l-url').focus(); return; } continue; }
-            if (!/^[a-z][a-z0-9+.-]*:/i.test(url)) url = 'https://' + url;
-            if (!isHttp(url)) { alert('リンクは http:// か https:// で始まるURLのみ登録できます: ' + url); row.querySelector('.l-url').focus(); return; }
+            url = normalizeLinkUrl(url);
+            if (!isLinkable(url)) { alert('リンクは http(s):// のURL、またはローカルのパス(C:\\... / \\\\server\\...)のみ登録できます: ' + url); row.querySelector('.l-url').focus(); return; }
             if (!seen.has(url)) { seen.add(url); links.push({ title, url }); }
           }
           pushUndo(t.id === newId ? '追加' : '編集');
